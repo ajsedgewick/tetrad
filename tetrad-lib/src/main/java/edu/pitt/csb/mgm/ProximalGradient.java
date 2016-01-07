@@ -86,6 +86,11 @@ public class ProximalGradient {
         noEdgeChangeTol = t;
     }
 
+    public void setPrintIter(int it) {
+        if(it <= 0) throw new IllegalArgumentException("Print Iter must be positive");
+        printIter = it;
+    }
+
 
     //run FISTA with step size backtracking attempt to speed up
     public DoubleMatrix1D learnBackTrack(ConvexProximal cp, DoubleMatrix1D Xin, double epsilon, int iterLimit) {

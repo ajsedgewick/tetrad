@@ -89,6 +89,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
 
     //parameter weights
     private DoubleMatrix1D weights;
+    private DoubleMatrix2D weightMat;
 
     public MGM(DoubleMatrix2D x, DoubleMatrix2D y, List<Node> variables, int[] l, double[] lambda){
 
@@ -113,10 +114,10 @@ public class MGM extends ConvexProximal implements GraphSearch{
 
 
         this.lambda = factory1D.make(lambda);
-        fixData();
+        fixData(xDat, yDat);
         initParameters();
         calcWeights();
-        makeDummy();
+        this.dDat = makeDummy(yDat, l);
     }
 
     public MGM(DataSet ds, double[] lambda){
@@ -128,7 +129,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
         this.l = MixedUtils.getDiscLevels(ds);
         this.p = xDat.columns();
         this.q = yDat.columns();
-        this.n = xDat.rows();
+        this.n = (xDat.rows()==0) ? yDat.rows() : xDat.rows();;
 
         //the variables are now ordered continuous first then discrete
         this.variables = new ArrayList<Node>();
@@ -140,10 +141,11 @@ public class MGM extends ConvexProximal implements GraphSearch{
         this.lambda = factory1D.make(lambda);
 
         //Data is checked for 0 or 1 indexing and fore missing levels
-        fixData();
+        fixData(xDat, yDat);
         initParameters();
         calcWeights();
-        makeDummy();
+        //makeDummy();
+        this.dDat = makeDummy(yDat, l);
     }
 
     public static class MGMParams{
@@ -264,8 +266,8 @@ public class MGM extends ConvexProximal implements GraphSearch{
          */
         public DoubleMatrix1D toMatrix1D(){
             DoubleFactory1D fac = DoubleFactory1D.dense;
-            int p = alpha1.size();
-            int ltot = alpha2.size();
+            int p = alpha1==null ? 0 : alpha1.size();
+            int ltot = alpha2==null ? 0 : alpha2.size();
             int[] lens = {p*p, p, p*ltot, ltot*ltot, p, ltot};
             int[] lenSums = new int[lens.length];
             lenSums[0] = lens[0];
@@ -274,12 +276,18 @@ public class MGM extends ConvexProximal implements GraphSearch{
             }
 
             DoubleMatrix1D outVec = fac.make(p*p + p + p*ltot + ltot*ltot + p + ltot);
-            outVec.viewPart(0, lens[0]).assign(flatten(beta));
-            outVec.viewPart(lenSums[0],lens[1]).assign(betad);
-            outVec.viewPart(lenSums[1],lens[2]).assign(flatten(theta));
-            outVec.viewPart(lenSums[2],lens[3]).assign(flatten(phi));
-            outVec.viewPart(lenSums[3],lens[4]).assign(alpha1);
-            outVec.viewPart(lenSums[4],lens[5]).assign(alpha2);
+            if(p>0) {
+                outVec.viewPart(0, lens[0]).assign(flatten(beta));
+                outVec.viewPart(lenSums[0], lens[1]).assign(betad);
+                outVec.viewPart(lenSums[3],lens[4]).assign(alpha1);
+            }
+            if(ltot>0) {
+                outVec.viewPart(lenSums[2], lens[3]).assign(flatten(phi));
+                outVec.viewPart(lenSums[4], lens[5]).assign(alpha2);
+            }
+            if(p>0 && ltot >0){
+                outVec.viewPart(lenSums[1], lens[2]).assign(flatten(theta));
+            }
 
             return outVec;
         }
@@ -296,6 +304,10 @@ public class MGM extends ConvexProximal implements GraphSearch{
 
     public void setParams(MGMParams newParams){
         params = newParams;
+    }
+
+    public MGMParams getParams(){
+        return params;
     }
 
     //create column major vector from matrix (i.e. concatenate columns)
@@ -351,12 +363,14 @@ public class MGM extends ConvexProximal implements GraphSearch{
             }
             weights.set(p+j, Math.sqrt(curWeight));
         }
+        weightMat = alg.multOuter(weights,
+                weights, null);
     }
 
     /**
      * Convert discrete data (in yDat) to a matrix of dummy variables (stored in dDat)
      */
-    private void makeDummy(){
+    /*private void makeDummy(){
         dDat = factory2D.make(n, lsum);
         for(int i = 0; i < q; i++){
             for(int j = 0; j < l[i]; j++){
@@ -366,24 +380,55 @@ public class MGM extends ConvexProximal implements GraphSearch{
                 dDat.viewColumn(lcumsum[i]+j).assign(curCol);
             }
         }
+    }*/
+
+    /**
+     * Convert discrete data (in yDat) to a matrix of dummy variables
+     */
+    private static DoubleMatrix2D makeDummy(DoubleMatrix2D yDat, int[] levels){
+        if(yDat.columns()==0) {return yDat.copy();}
+
+        int n = yDat.rows();
+        int q = yDat.columns();
+        //int[] l = MixedUtils.getDiscLevels(yDat);
+        int[] lcumsum = new int[levels.length+1];
+        lcumsum[0] = 0;
+        for(int i = 0; i < levels.length; i++){
+            lcumsum[i+1] = lcumsum[i] + levels[i];
+        }
+        int lsum = lcumsum[levels.length];
+
+        DoubleMatrix2D dDat = DoubleFactory2D.dense.make(n, lsum);
+        for(int i = 0; i < q; i++){
+            for(int j = 0; j < levels[i]; j++){
+                DoubleMatrix1D curCol = yDat.viewColumn(i).copy().assign(Functions.equals(j+1));
+                if(curCol.zSum() == 0)
+                    throw new IllegalArgumentException("Discrete data is missing a level: variable " + i + " level " + j);
+                dDat.viewColumn(lcumsum[i]+j).assign(curCol);
+            }
+        }
+        return dDat;
     }
 
     /**
      * checks if yDat is zero indexed and converts to 1 index. zscores x
      */
-    private void fixData(){
-        double ymin = StatUtils.min(flatten(yDat).toArray());
-        if(ymin < 0 || ymin > 1)
-            throw new IllegalArgumentException("Discrete data must be either zero or one indexed. Found min index: " + ymin);
+    private static void fixData(DoubleMatrix2D xDat, DoubleMatrix2D yDat){
+        if(yDat.columns()>0) {
+            double ymin = StatUtils.min(flatten(yDat).toArray());
+            if (ymin < 0 || ymin > 1)
+                throw new IllegalArgumentException("Discrete data must be either zero or one indexed. Found min index: " + ymin);
 
-        if(ymin==0){
-            yDat.assign(Functions.plus(1.0));
+            if (ymin == 0) {
+                yDat.assign(Functions.plus(1.0));
+            }
         }
 
-
-        //z-score columns of X
-        for(int i = 0; i < p; i++){
-            xDat.viewColumn(i).assign(StatUtils.standardizeData(xDat.viewColumn(i).toArray()));
+        if(xDat.columns()>0) {
+            //z-score columns of X
+            for (int i = 0; i < xDat.columns(); i++) {
+                xDat.viewColumn(i).assign(StatUtils.standardizeData(xDat.viewColumn(i).toArray()));
+            }
         }
     }
 
@@ -394,6 +439,32 @@ public class MGM extends ConvexProximal implements GraphSearch{
      * @return
      */
     public double smoothValue(DoubleMatrix1D parIn){
+        return smoothValue(parIn, xDat, yDat, dDat);
+    }
+
+    /**
+     * non-penalized -log(pseudolikelihood) this is the smooth function g(x) in prox gradient
+     *
+     * @param parIn
+     * @return
+     */
+    public double smoothValue(DoubleMatrix1D parIn, DataSet dsT){
+        DataSet dsCont = MixedUtils.getContinousData(dsT);
+        DataSet dsDisc = MixedUtils.getDiscreteData(dsT);
+        DoubleMatrix2D xDatT = factory2D.make(dsCont.getDoubleData().toArray());
+        DoubleMatrix2D yDatT = factory2D.make(dsDisc.getDoubleData().toArray());
+        fixData(xDatT, yDatT);
+        DoubleMatrix2D dDatT = makeDummy(yDat, MixedUtils.getDiscLevels(dsT));
+        return smoothValue(parIn, xDatT, yDatT, dDatT);
+    }
+
+    /**
+     * non-penalized -log(pseudolikelihood) this is the smooth function g(x) in prox gradient
+     *
+     * @param parIn
+     * @return
+     */
+    private double smoothValue(DoubleMatrix1D parIn, DoubleMatrix2D xDatT, DoubleMatrix2D yDatT, DoubleMatrix2D dDatT){
         //work with copy
         MGMParams par = new MGMParams(parIn, p, lsum);
 
@@ -401,48 +472,47 @@ public class MGM extends ConvexProximal implements GraphSearch{
             if(par.betad.get(i)<0)
                 return Double.POSITIVE_INFINITY;
         }
-        //double nll = 0;
-        //int n = xDat.rows();
-        //beta=beta+beta';
-        //phi=phi+phi';
-        upperTri(par.beta, 1);
-        par.beta.assign(alg.transpose(par.beta), Functions.plus);
 
-        for(int i = 0; i < q; i++){
-            par.phi.viewPart(lcumsum[i], lcumsum[i], l[i], l[i]).assign(0);
-        }
-        // ensure mats are upper triangular
-        upperTri(par.phi,0);
-        par.phi.assign(alg.transpose(par.phi), Functions.plus);
-
-
-        //Xbeta=X*beta*diag(1./betad);
-        DoubleMatrix2D divBetaD = factory2D.diagonal(factory1D.make(p,1.0).assign(par.betad, Functions.div));
-        DoubleMatrix2D xBeta = alg.mult(xDat,alg.mult(par.beta, divBetaD));
-
-        //Dtheta=D*theta*diag(1./betad);
-        DoubleMatrix2D dTheta = alg.mult(alg.mult(dDat, par.theta), divBetaD);
-
-        // Squared loss
-        //sqloss=-n/2*sum(log(betad))+...
-        //.5*norm((X-e*alpha1'-Xbeta-Dtheta)*diag(sqrt(betad)),'fro')^2;
-        DoubleMatrix2D tempLoss = factory2D.make(n, xDat.columns());
-
-        //wxprod=X*(theta')+D*phi+e*alpha2';
-        DoubleMatrix2D wxProd = alg.mult(xDat, alg.transpose(par.theta));
-        wxProd.assign(alg.mult(dDat, par.phi), Functions.plus);
-        for(int i = 0; i < n; i++){
-            for(int j = 0; j < xDat.columns(); j++){
-                tempLoss.set(i,j,xDat.get(i,j) - par.alpha1.get(j) - xBeta.get(i,j) - dTheta.get(i,j));
-            }
-            for(int j = 0; j < dDat.columns(); j++){
-                wxProd.set(i,j,wxProd.get(i,j) + par.alpha2.get(j));
-            }
+        if(xDatT.columns() != p || yDatT.columns() != q || dDatT.columns() != lsum){
+            throw new IllegalArgumentException("Number of variables does not match model variables");
         }
 
-        double sqloss = -n/2.0*par.betad.copy().assign(Functions.log).zSum() +
-                .5 * Math.pow(alg.normF(alg.mult(tempLoss, factory2D.diagonal(par.betad.copy().assign(Functions.sqrt)))), 2);
+        double sqloss = 0;
+        int nT = (xDatT.rows()==0) ? yDatT.rows() : xDatT.rows();
 
+        if(p>0) {
+            //double nll = 0;
+            //int n = xDat.rows();
+            //beta=beta+beta';
+            //phi=phi+phi';
+            upperTri(par.beta, 1);
+            par.beta.assign(alg.transpose(par.beta), Functions.plus);
+
+
+            //Xbeta=X*beta*diag(1./betad);
+            DoubleMatrix2D divBetaD = factory2D.diagonal(factory1D.make(p, 1.0).assign(par.betad, Functions.div));
+            DoubleMatrix2D xBeta = alg.mult(xDatT, alg.mult(par.beta, divBetaD));
+
+            //Dtheta=D*theta*diag(1./betad);
+            DoubleMatrix2D dTheta = factory2D.make(nT, xDatT.columns());
+            if(q>0) {
+                dTheta = alg.mult(alg.mult(dDatT, par.theta), divBetaD);
+            }
+
+            // Squared loss
+            //sqloss=-n/2*sum(log(betad))+...
+            //.5*norm((X-e*alpha1'-Xbeta-Dtheta)*diag(sqrt(betad)),'fro')^2;
+            DoubleMatrix2D tempLoss = factory2D.make(nT, p);
+
+            for (int i = 0; i < nT; i++) {
+                for (int j = 0; j < p; j++) {
+                    tempLoss.set(i, j, xDatT.get(i, j) - par.alpha1.get(j) - xBeta.get(i, j) - dTheta.get(i, j));
+                }
+            }
+
+            sqloss = -nT / 2.0 * par.betad.copy().assign(Functions.log).zSum() +
+                    .5 * Math.pow(alg.normF(alg.mult(tempLoss, factory2D.diagonal(par.betad.copy().assign(Functions.sqrt)))), 2);
+        }
 
         // categorical loss
         /*catloss=0;
@@ -456,17 +526,38 @@ public class MGM extends ConvexProximal implements GraphSearch{
         */
 
         double catloss = 0;
-        for(int i = 0; i < yDat.columns(); i++){
-            DoubleMatrix2D wxTemp = wxProd.viewPart(0, lcumsum[i], n, l[i]);
-            for(int k = 0; k < n; k++){
-                DoubleMatrix1D curRow = wxTemp.viewRow(k);
+        if(q>0) {
+            //fix phi to be symmetrical, zero diagonal
+            for (int i = 0; i < q; i++) {
+                par.phi.viewPart(lcumsum[i], lcumsum[i], l[i], l[i]).assign(0);
+            }
+            upperTri(par.phi, 0);
+            par.phi.assign(alg.transpose(par.phi), Functions.plus);
 
-                catloss -= curRow.get((int) yDat.get(k, i) - 1);
-                catloss += logsumexp(curRow);
+            //wxprod=X*(theta')+D*phi+e*alpha2';
+            DoubleMatrix2D wxProd = factory2D.make(nT, lsum);
+            if (p > 0) {
+                wxProd.assign(alg.mult(xDatT, alg.transpose(par.theta)), Functions.plus);
+            }
+            wxProd.assign(alg.mult(dDatT, par.phi), Functions.plus);
+            for (int i = 0; i < nT; i++) {
+                for (int j = 0; j < dDatT.columns(); j++) {
+                    wxProd.set(i, j, wxProd.get(i, j) + par.alpha2.get(j));
+                }
+            }
+
+            for (int i = 0; i < q; i++) {
+                DoubleMatrix2D wxTemp = wxProd.viewPart(0, lcumsum[i], nT, l[i]);
+                for (int k = 0; k < nT; k++) {
+                    DoubleMatrix1D curRow = wxTemp.viewRow(k);
+
+                    catloss -= curRow.get((int) yDatT.get(k, i) - 1);
+                    catloss += logsumexp(curRow);
+                }
             }
         }
 
-        return (sqloss + catloss)/((double) n);
+        return (sqloss + catloss)/((double) nT);
     }
 
     /**
@@ -489,67 +580,74 @@ public class MGM extends ConvexProximal implements GraphSearch{
                 return Double.POSITIVE_INFINITY;
         }
 
-        //beta=beta-diag(diag(beta));
-        //for r=1:q
-        //  phi(Lsum(r)+1:Lsum(r+1),Lsum(r)+1:Lsum(r+1))=0;
-        //end
-        //beta=triu(beta); phi=triu(phi);
-        //beta=beta+beta';
-        //phi=phi+phi';
-        upperTri(par.beta, 1);
-        par.beta.assign(alg.transpose(par.beta), Functions.plus);
+        double sqloss = 0;
+        if(xDat.columns()>0) {
+            //beta=beta-diag(diag(beta));
+            //for r=1:q
+            //  phi(Lsum(r)+1:Lsum(r+1),Lsum(r)+1:Lsum(r+1))=0;
+            //end
+            //beta=triu(beta); phi=triu(phi);
+            //beta=beta+beta';
+            //phi=phi+phi';
+            upperTri(par.beta, 1);
+            par.beta.assign(alg.transpose(par.beta), Functions.plus);
 
-        for(int i = 0; i < q; i++){
-            par.phi.viewPart(lcumsum[i], lcumsum[i], l[i], l[i]).assign(0);
-        }
-        //ensure matrix is upper triangular
-        upperTri(par.phi,0);
-        par.phi.assign(alg.transpose(par.phi), Functions.plus);
 
-        //Xbeta=X*beta*diag(1./betad);
-        DoubleMatrix2D divBetaD = factory2D.diagonal(factory1D.make(p,1.0).assign(par.betad, Functions.div));
-        DoubleMatrix2D xBeta = alg.mult(xDat,alg.mult(par.beta, divBetaD));
+            //Xbeta=X*beta*diag(1./betad);
+            DoubleMatrix2D divBetaD = factory2D.diagonal(factory1D.make(p, 1.0).assign(par.betad, Functions.div));
+            DoubleMatrix2D xBeta = alg.mult(xDat, alg.mult(par.beta, divBetaD));
 
-        //Dtheta=D*theta*diag(1./betad);
-        DoubleMatrix2D dTheta = alg.mult(alg.mult(dDat, par.theta), divBetaD);
-
-        // Squared loss
-        //tempLoss =  (X-e*alpha1'-Xbeta-Dtheta) = -res (in gradient code)
-        DoubleMatrix2D tempLoss = factory2D.make(n, xDat.columns());
-
-        //wxprod=X*(theta')+D*phi+e*alpha2';
-        DoubleMatrix2D wxProd = alg.mult(xDat, alg.transpose(par.theta));
-        wxProd.assign(alg.mult(dDat, par.phi), Functions.plus);
-        for(int i = 0; i < n; i++){
-            for(int j = 0; j < xDat.columns(); j++){
-                tempLoss.set(i,j,xDat.get(i,j) - par.alpha1.get(j) - xBeta.get(i,j) - dTheta.get(i,j));
+            //Dtheta=D*theta*diag(1./betad);
+            DoubleMatrix2D dTheta = factory2D.make(n, xDat.columns());
+            if (yDat.columns() > 0) {
+                dTheta = alg.mult(alg.mult(dDat, par.theta), divBetaD);
             }
-            for(int j = 0; j < dDat.columns(); j++){
-                wxProd.set(i,j,wxProd.get(i,j) + par.alpha2.get(j));
+
+            // Squared loss
+            //tempLoss =  (X-e*alpha1'-Xbeta-Dtheta) = -res (in gradient code)
+            DoubleMatrix2D tempLoss = factory2D.make(n, xDat.columns());
+
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < p; j++) {
+                    tempLoss.set(i, j, xDat.get(i, j) - par.alpha1.get(j) - xBeta.get(i, j) - dTheta.get(i, j));
+                }
+            }
+
+            //sqloss=-n/2*sum(log(betad))+...
+            //.5*norm((X-e*alpha1'-Xbeta-Dtheta)*diag(sqrt(betad)),'fro')^2;
+            sqloss = -n / 2.0 * par.betad.copy().assign(Functions.log).zSum() +
+                    .5 * Math.pow(alg.normF(alg.mult(tempLoss, factory2D.diagonal(par.betad.copy().assign(Functions.sqrt)))), 2);
+
+            //ok now tempLoss = res
+            tempLoss.assign(Functions.mult(-1));
+
+            //gradbeta=X'*(res);
+            gradOut.beta = alg.mult(alg.transpose(xDat), tempLoss);
+
+            //gradbeta=gradbeta-diag(diag(gradbeta)); % zero out diag
+            //gradbeta=tril(gradbeta)'+triu(gradbeta);
+            DoubleMatrix2D lowerBeta = alg.transpose(lowerTri(gradOut.beta.copy(), -1));
+            upperTri(gradOut.beta, 1).assign(lowerBeta, Functions.plus);
+
+            //gradalpha1=diag(betad)*sum(res,1)';
+            gradOut.alpha1 = alg.mult(factory2D.diagonal(par.betad), margSum(tempLoss, 1));
+
+            //gradtheta=D'*(res);
+            if (yDat.columns() > 0) {
+                gradOut.theta = alg.mult(alg.transpose(dDat), tempLoss);
+            }
+
+            /*
+            for s=1:p
+                gradbetad(s)=-n/(2*betad(s))+1/2*norm(res(:,s))^2-res(:,s)'*(Xbeta(:,s)+Dtheta(:,s));
+            end
+            */
+            gradOut.betad = factory1D.make(p);
+            for(int i = 0; i < p; i++){
+                gradOut.betad.set(i, -n / (2.0 * par.betad.get(i)) + alg.norm2(tempLoss.viewColumn(i)) / 2.0 -
+                        alg.mult(tempLoss.viewColumn(i), xBeta.viewColumn(i).copy().assign(dTheta.viewColumn(i), Functions.plus)));
             }
         }
-
-        //sqloss=-n/2*sum(log(betad))+...
-        //.5*norm((X-e*alpha1'-Xbeta-Dtheta)*diag(sqrt(betad)),'fro')^2;
-        double sqloss = -n/2.0*par.betad.copy().assign(Functions.log).zSum() +
-                .5 * Math.pow(alg.normF(alg.mult(tempLoss, factory2D.diagonal(par.betad.copy().assign(Functions.sqrt)))), 2);
-
-        //ok now tempLoss = res
-        tempLoss.assign(Functions.mult(-1));
-
-        //gradbeta=X'*(res);
-        gradOut.beta = alg.mult(alg.transpose(xDat), tempLoss);
-
-        //gradbeta=gradbeta-diag(diag(gradbeta)); % zero out diag
-        //gradbeta=tril(gradbeta)'+triu(gradbeta);
-        DoubleMatrix2D lowerBeta = alg.transpose(lowerTri(gradOut.beta.copy(), -1));
-        upperTri(gradOut.beta, 1).assign(lowerBeta, Functions.plus);
-
-        //gradalpha1=diag(betad)*sum(res,1)';
-        gradOut.alpha1 = alg.mult(factory2D.diagonal(par.betad),margSum(tempLoss, 1));
-
-        //gradtheta=D'*(res);
-        gradOut.theta = alg.mult(alg.transpose(dDat), tempLoss);
 
         // categorical loss
         /*catloss=0;
@@ -561,71 +659,88 @@ public class MGM extends ConvexProximal implements GraphSearch{
             catloss=catloss+sum(denom);
         end
         */
-
         double catloss = 0;
-        for(int i = 0; i < yDat.columns(); i++){
-            DoubleMatrix2D wxTemp = wxProd.viewPart(0, lcumsum[i], n, l[i]);
-            //need to copy init values for calculating nll
-            DoubleMatrix2D wxTemp0 = wxTemp.copy();
-
-            // does this need to be done in log space??
-            wxTemp.assign(Functions.exp);
-            DoubleMatrix1D invDenom = factory1D.make(n,1.0).assign(margSum(wxTemp, 2), Functions.div);
-            wxTemp.assign(alg.mult(factory2D.diagonal(invDenom), wxTemp));
-            for(int k = 0; k < n; k++){
-                DoubleMatrix1D curRow = wxTemp.viewRow(k);
-                DoubleMatrix1D curRow0 = wxTemp0.viewRow(k);
-
-                catloss -= curRow0.get((int) yDat.get(k, i) - 1);
-                catloss += logsumexp(curRow0);
-
-
-                //wxtemp(sub2ind(size(wxtemp),(1:n)',Y(:,r)))=wxtemp(sub2ind(size(wxtemp),(1:n)',Y(:,r)))-1;
-                curRow.set((int) yDat.get(k,i)-1, curRow.get((int) yDat.get(k,i)-1) - 1);
+        if(q>0) {
+            //fix phi to be symmetrical, zero diagonal
+            for (int i = 0; i < q; i++) {
+                par.phi.viewPart(lcumsum[i], lcumsum[i], l[i], l[i]).assign(0);
             }
+            upperTri(par.phi, 0);
+            par.phi.assign(alg.transpose(par.phi), Functions.plus);
+
+            //wxprod=X*(theta')+D*phi+e*alpha2';
+            DoubleMatrix2D wxProd = factory2D.make(n, lsum);
+            if(p>0) {
+                wxProd.assign(alg.mult(xDat, alg.transpose(par.theta)), Functions.plus);
+            }
+            wxProd.assign(alg.mult(dDat, par.phi), Functions.plus);
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < lsum; j++) {
+                    wxProd.set(i, j, wxProd.get(i, j) + par.alpha2.get(j));
+                }
+            }
+
+            for(int i = 0; i < q; i++){
+                DoubleMatrix2D wxTemp = wxProd.viewPart(0, lcumsum[i], n, l[i]);
+                //need to copy init values for calculating nll
+                DoubleMatrix2D wxTemp0 = wxTemp.copy();
+
+                // does this need to be done in log space??
+                wxTemp.assign(Functions.exp);
+                DoubleMatrix1D invDenom = factory1D.make(n,1.0).assign(margSum(wxTemp, 2), Functions.div);
+                wxTemp.assign(alg.mult(factory2D.diagonal(invDenom), wxTemp));
+                for(int k = 0; k < n; k++){
+                    DoubleMatrix1D curRow = wxTemp.viewRow(k);
+                    DoubleMatrix1D curRow0 = wxTemp0.viewRow(k);
+
+                    catloss -= curRow0.get((int) yDat.get(k, i) - 1);
+                    catloss += logsumexp(curRow0);
+
+
+                    //wxtemp(sub2ind(size(wxtemp),(1:n)',Y(:,r)))=wxtemp(sub2ind(size(wxtemp),(1:n)',Y(:,r)))-1;
+                    curRow.set((int) yDat.get(k,i)-1, curRow.get((int) yDat.get(k,i)-1) - 1);
+                }
+            }
+
+
+            if(p>0){
+                //gradw=X'*wxprod;
+                DoubleMatrix2D gradW = alg.mult(alg.transpose(xDat), wxProd);
+
+                //gradtheta=gradtheta+gradw';
+                gradOut.theta.assign(alg.transpose(gradW), Functions.plus);
+            }
+            //gradalpha2=sum(wxprod,1)';
+            gradOut.alpha2 = margSum(wxProd, 1);
+
+            //gradphi=D'*wxprod;
+            gradOut.phi = alg.mult(alg.transpose(dDat), wxProd);
+
+            //zero out gradphi diagonal
+            //for r=1:q
+            //gradphi(Lsum(r)+1:Lsum(r+1),Lsum(r)+1:Lsum(r+1))=0;
+            //end
+            for (int i = 0; i < q; i++) {
+                gradOut.phi.viewPart(lcumsum[i], lcumsum[i], l[i], l[i]).assign(0);
+            }
+
+            //gradphi=tril(gradphi)'+triu(gradphi);
+            DoubleMatrix2D lowerPhi = alg.transpose(lowerTri(gradOut.phi.copy(), 0));
+            upperTri(gradOut.phi, 0).assign(lowerPhi, Functions.plus);
         }
 
-        //gradalpha2=sum(wxprod,1)';
-        gradOut.alpha2 = margSum(wxProd,1);
-
-        //gradw=X'*wxprod;
-        DoubleMatrix2D gradW = alg.mult(alg.transpose(xDat), wxProd);
-
-        //gradtheta=gradtheta+gradw';
-        gradOut.theta.assign(alg.transpose(gradW), Functions.plus);
-
-        //gradphi=D'*wxprod;
-        gradOut.phi = alg.mult(alg.transpose(dDat), wxProd);
-
-        //zero out gradphi diagonal
-        //for r=1:q
-        //gradphi(Lsum(r)+1:Lsum(r+1),Lsum(r)+1:Lsum(r+1))=0;
-        //end
-        for(int i = 0; i < q; i++){
-            gradOut.phi.viewPart(lcumsum[i], lcumsum[i], l[i], l[i]).assign(0);
+        if(p>0) {
+            gradOut.alpha1.assign(Functions.div((double) n));
+            gradOut.betad.assign(Functions.div((double) n));
+            gradOut.beta.assign(Functions.div((double) n));
         }
-
-        //gradphi=tril(gradphi)'+triu(gradphi);
-        DoubleMatrix2D lowerPhi = alg.transpose(lowerTri(gradOut.phi.copy(), 0));
-        upperTri(gradOut.phi, 0).assign(lowerPhi, Functions.plus);
-
-        /*
-        for s=1:p
-            gradbetad(s)=-n/(2*betad(s))+1/2*norm(res(:,s))^2-res(:,s)'*(Xbeta(:,s)+Dtheta(:,s));
-        end
-         */
-        gradOut.betad = factory1D.make(xDat.columns());
-        for(int i = 0; i < p; i++){
-            gradOut.betad.set(i, -n / (2.0 * par.betad.get(i)) + alg.norm2(tempLoss.viewColumn(i)) / 2.0 -
-                    alg.mult(tempLoss.viewColumn(i), xBeta.viewColumn(i).copy().assign(dTheta.viewColumn(i), Functions.plus)));
+        if(q>0) {
+            gradOut.alpha2.assign(Functions.div((double) n));
+            gradOut.phi.assign(Functions.div((double) n));
         }
-
-        gradOut.alpha1.assign(Functions.div((double) n));
-        gradOut.alpha2.assign(Functions.div((double) n));
-        gradOut.betad.assign(Functions.div((double) n));
-        gradOut.beta.assign(Functions.div((double) n));
-        gradOut.theta.assign(Functions.div((double) n));
-        gradOut.phi.assign(Functions.div((double) n));
+        if(p>0 && q > 0){
+            gradOut.theta.assign(Functions.div((double) n));
+        }
 
         gradOutVec.assign(gradOut.toMatrix1D());
         return (sqloss + catloss)/((double) n);
@@ -642,22 +757,25 @@ public class MGM extends ConvexProximal implements GraphSearch{
         //Dimension checked in constructor
         //par is a copy so we can update it
         MGMParams par = new MGMParams(parIn, p, lsum);
+        double outVal = 0;
 
         //penbeta = t(1).*(wv(1:p)'*wv(1:p));
         //betascale=zeros(size(beta));
         //betascale=max(0,1-penbeta./abs(beta));
-        DoubleMatrix2D weightMat = alg.multOuter(weights,
-                weights, null);
+        //DoubleMatrix2D weightMat = alg.multOuter(weights,
+        //        weights, null);
 
         //int p = xDat.columns();
 
         //weight beta
         //betaw = (wv(1:p)'*wv(1:p)).*abs(beta);
         //betanorms=sum(betaw(:));
-        DoubleMatrix2D betaWeight = weightMat.viewPart(0, 0, p, p);
-        DoubleMatrix2D absBeta = par.beta.copy().assign(Functions.abs);
-        double betaNorms = absBeta.assign(betaWeight, Functions.mult).zSum();
-
+        if(lambda.get(0)!=0 && p > 0) {
+            DoubleMatrix2D betaWeight = weightMat.viewPart(0, 0, p, p);
+            DoubleMatrix2D absBeta = par.beta.copy().assign(Functions.abs);
+            double betaNorms = absBeta.assign(betaWeight, Functions.mult).zSum();
+            outVal += lambda.get(0)*betaNorms;
+        }
 
         /*
         thetanorms=0;
@@ -668,14 +786,16 @@ public class MGM extends ConvexProximal implements GraphSearch{
             end
         end
         */
-        double thetaNorms = 0;
-        for(int i = 0; i < p; i++){
-            for(int j = 0; j < lcumsum.length-1; j++){
-                DoubleMatrix1D tempVec = par.theta.viewColumn(i).viewPart(lcumsum[j], l[j]);
-                thetaNorms += weightMat.get(i, p+j)*Math.sqrt(alg.norm2(tempVec));
+        if(lambda.get(1)!=0) {
+            double thetaNorms = 0;
+            for (int i = 0; i < p; i++) {
+                for (int j = 0; j < lcumsum.length - 1; j++) {
+                    DoubleMatrix1D tempVec = par.theta.viewColumn(i).viewPart(lcumsum[j], l[j]);
+                    thetaNorms += weightMat.get(i, p + j) * Math.sqrt(alg.norm2(tempVec));
+                }
             }
+            outVal+= lambda.get(1)*thetaNorms;
         }
-
         /*
         for r=1:q
             for j=1:q
@@ -688,15 +808,18 @@ public class MGM extends ConvexProximal implements GraphSearch{
             end
         end
          */
-        double phiNorms = 0;
-        for(int i = 0; i < lcumsum.length-1; i++){
-            for(int j = i+1; j < lcumsum.length-1; j++){
-                DoubleMatrix2D tempMat = par.phi.viewPart(lcumsum[i], lcumsum[j], l[i], l[j]);
-                phiNorms += weightMat.get(p+i,p+j)*alg.normF(tempMat);
+        if(lambda.get(2)!=0) {
+            double phiNorms = 0;
+            for (int i = 0; i < lcumsum.length - 1; i++) {
+                for (int j = i + 1; j < lcumsum.length - 1; j++) {
+                    DoubleMatrix2D tempMat = par.phi.viewPart(lcumsum[i], lcumsum[j], l[i], l[j]);
+                    phiNorms += weightMat.get(p + i, p + j) * alg.normF(tempMat);
+                }
             }
+            outVal += lambda.get(2)*phiNorms;
         }
-
-        return lambda.get(0)*betaNorms + lambda.get(1)*thetaNorms + lambda.get(2)*phiNorms;
+        //return lambda.get(0)*betaNorms + lambda.get(1)*thetaNorms + lambda.get(2)*phiNorms;
+        return outVal;
     }
 
 
@@ -707,7 +830,11 @@ public class MGM extends ConvexProximal implements GraphSearch{
      * @return
      */
     public DoubleMatrix1D smoothGradient(DoubleMatrix1D parIn){
-        int n = xDat.rows();
+        DoubleMatrix1D outGrad = factory1D.make(parIn.size());
+        smooth(parIn, outGrad);
+        return outGrad;
+
+/*      int n = xDat.rows();
         MGMParams grad = new MGMParams();
 
         //
@@ -757,7 +884,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
         //gradtheta=D'*(res);
         grad.theta = alg.mult(alg.transpose(dDat), negLoss);
 
-        /*
+        *//*
         wxprod=X*(theta')+D*phi+e*alpha2'; %this is n by Ltot
         Lsum=[0;cumsum(L)];
         for r=1:q
@@ -768,7 +895,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
             wxtemp(sub2ind(size(wxtemp),(1:n)',Y(:,r)))=wxtemp(sub2ind(size(wxtemp),(1:n)',Y(:,r)))-1;
             wxprod(:,idx)=wxtemp;
         end
-        */
+        *//*
 
         for(int i = 0; i < yDat.columns(); i++){
             DoubleMatrix2D wxTemp = wxProd.viewPart(0, lcumsum[i], n, l[i]);
@@ -809,11 +936,11 @@ public class MGM extends ConvexProximal implements GraphSearch{
         DoubleMatrix2D lowerPhi = alg.transpose(lowerTri(grad.phi.copy(), 0));
         upperTri(grad.phi, 0).assign(lowerPhi, Functions.plus);
 
-        /*
-        for s=1:p
-            gradbetad(s)=-n/(2*betad(s))+1/2*norm(res(:,s))^2-res(:,s)'*(Xbeta(:,s)+Dtheta(:,s));
-        end
-         */
+
+        //for s=1:p
+        //    gradbetad(s)=-n/(2*betad(s))+1/2*norm(res(:,s))^2-res(:,s)'*(Xbeta(:,s)+Dtheta(:,s));
+        //end
+
         grad.betad = factory1D.make(xDat.columns());
         for(int i = 0; i < p; i++){
             grad.betad.set(i, -n / (2.0 * par.betad.get(i)) + alg.norm2(negLoss.viewColumn(i)) / 2.0 -
@@ -827,7 +954,8 @@ public class MGM extends ConvexProximal implements GraphSearch{
         grad.theta.assign(Functions.div((double) n));
         grad.phi.assign(Functions.div((double) n));
 
-        return grad.toMatrix1D();
+        return grad.toMatrix1D();*/
+
     }
 
     /**
@@ -838,7 +966,11 @@ public class MGM extends ConvexProximal implements GraphSearch{
      * @return output vector, same dimension as X
      */
     public DoubleMatrix1D proximalOperator(double t, DoubleMatrix1D X) {
-            //System.out.println("PROX with t = " + t);
+        DoubleMatrix1D outProx = factory1D.make(X.size());
+        nonSmooth(t, X, outProx);
+        return outProx;
+
+        /*    //System.out.println("PROX with t = " + t);
         if(t <= 0)
             throw new IllegalArgumentException("t must be positive: " + t);
 
@@ -852,31 +984,33 @@ public class MGM extends ConvexProximal implements GraphSearch{
         //penbeta = t(1).*(wv(1:p)'*wv(1:p));
         //betascale=zeros(size(beta));
         //betascale=max(0,1-penbeta./abs(beta));
-        DoubleMatrix2D weightMat = alg.multOuter(weights,
-                weights, null);
-        DoubleMatrix2D betaWeight = weightMat.viewPart(0, 0, p, p);
-        DoubleMatrix2D betascale = betaWeight.copy().assign(Functions.mult(-tlam.get(0)));
-        betascale.assign(par.beta.copy().assign(Functions.abs), Functions.div);
-        betascale.assign(Functions.plus(1));
-        betascale.assign(Functions.max(0));
+        //DoubleMatrix2D weightMat = alg.multOuter(weights,
+        //        weights, null);
 
-        //beta=beta.*betascale;
-        //par.beta.assign(betascale, Functions.mult);
-        for(int i= 0; i < p; i++){
-            for(int j = 0; j < p; j++){
-                double curVal =  par.beta.get(i,j);
-                if(curVal !=0){
-                    par.beta.set(i,j, curVal*betascale.get(i,j));
+        if(tlam.get(0)!=0 && p > 0) {
+            DoubleMatrix2D betaWeight = weightMat.viewPart(0, 0, p, p);
+            DoubleMatrix2D betascale = betaWeight.copy().assign(Functions.mult(-tlam.get(0)));
+            betascale.assign(par.beta.copy().assign(Functions.abs), Functions.div);
+            betascale.assign(Functions.plus(1));
+            betascale.assign(Functions.max(0));
+
+            //beta=beta.*betascale;
+            //par.beta.assign(betascale, Functions.mult);
+            for (int i = 0; i < p; i++) {
+                for (int j = 0; j < p; j++) {
+                    double curVal = par.beta.get(i, j);
+                    if (curVal != 0) {
+                        par.beta.set(i, j, curVal * betascale.get(i, j));
+                    }
                 }
             }
         }
-
         //weight beta
         //betaw = (wv(1:p)'*wv(1:p)).*beta;
         //betanorms=sum(abs(betaw(:)));
         //double betaNorm = betaWeight.copy().assign(par.beta, Functions.mult).assign(Functions.abs).zSum();
 
-        /*
+        *//*
         thetanorms=0;
         for s=1:p
             for j=1:q
@@ -886,18 +1020,19 @@ public class MGM extends ConvexProximal implements GraphSearch{
                 theta(Lsums(j)+1:Lsums(j+1),s)=tempvec(1:L(j));
             end
         end
-        */
-        for(int i = 0; i < p; i++){
-            for(int j = 0; j < lcumsum.length-1; j++){
-                DoubleMatrix1D tempVec = par.theta.viewColumn(i).viewPart(lcumsum[j], l[j]);
-                //double thetaScale = Math.max(0, 1 - tlam.get(1)*weightMat.get(i, p+j)/Math.sqrt(alg.norm2(tempVec)));
-                double foo = norm2(tempVec);
-                double thetaScale = Math.max(0, 1 - tlam.get(1) * weightMat.get(i, p+j)/norm2(tempVec));
-                tempVec.assign(Functions.mult(thetaScale));
+        *//*
+        if(tlam.get(1)!=0) {
+            for (int i = 0; i < p; i++) {
+                for (int j = 0; j < lcumsum.length - 1; j++) {
+                    DoubleMatrix1D tempVec = par.theta.viewColumn(i).viewPart(lcumsum[j], l[j]);
+                    //double thetaScale = Math.max(0, 1 - tlam.get(1)*weightMat.get(i, p+j)/Math.sqrt(alg.norm2(tempVec)));
+                    double foo = norm2(tempVec);
+                    double thetaScale = Math.max(0, 1 - tlam.get(1) * weightMat.get(i, p + j) / norm2(tempVec));
+                    tempVec.assign(Functions.mult(thetaScale));
+                }
             }
         }
-
-        /*
+        *//*
         for r=1:q
             for j=1:q
                 if r<j
@@ -908,19 +1043,21 @@ public class MGM extends ConvexProximal implements GraphSearch{
                 end
             end
         end
-         */
-        for(int i = 0; i < lcumsum.length-1; i++){
-            for(int j = i+1; j < lcumsum.length-1; j++){
-                DoubleMatrix2D tempMat = par.phi.viewPart(lcumsum[i], lcumsum[j], l[i], l[j]);
+         *//*
+        if(tlam.get(2)!=0) {
+            for (int i = 0; i < lcumsum.length - 1; i++) {
+                for (int j = i + 1; j < lcumsum.length - 1; j++) {
+                    DoubleMatrix2D tempMat = par.phi.viewPart(lcumsum[i], lcumsum[j], l[i], l[j]);
 
-                //Not sure why this isnt Frobenius norm...
-                //double phiScale = Math.max(0, 1-tlam.get(2)*weightMat.get(p+i,p+j)/alg.norm2(tempMat));
-                double phiScale = Math.max(0, 1 - tlam.get(2) * weightMat.get(p + i,p+j)/norm2(tempMat));
-                //double phiScale = Math.max(0, 1-tlam.get(2)*weightMat.get(p+i,p+j)/alg.normF(tempMat));
-                tempMat.assign(Functions.mult(phiScale));
+                    //Not sure why this isnt Frobenius norm...
+                    //double phiScale = Math.max(0, 1-tlam.get(2)*weightMat.get(p+i,p+j)/alg.norm2(tempMat));
+                    double phiScale = Math.max(0, 1 - tlam.get(2) * weightMat.get(p + i, p + j) / norm2(tempMat));
+                    //double phiScale = Math.max(0, 1-tlam.get(2)*weightMat.get(p+i,p+j)/alg.normF(tempMat));
+                    tempMat.assign(Functions.mult(phiScale));
+                }
             }
         }
-        return par.toMatrix1D();
+        return par.toMatrix1D();*/
     }
 
     /**
@@ -942,33 +1079,35 @@ public class MGM extends ConvexProximal implements GraphSearch{
         //par is a copy so we can update it
         MGMParams par = new MGMParams(X, p, lsum);
 
+        double betaNorms  = 0;
+        //DoubleMatrix2D weightMat = alg.multOuter(weights,
+        //        weights, null);
+
         //penbeta = t(1).*(wv(1:p)'*wv(1:p));
         //betascale=zeros(size(beta));
         //betascale=max(0,1-penbeta./abs(beta));
-        DoubleMatrix2D weightMat = alg.multOuter(weights,
-                weights, null);
-        DoubleMatrix2D betaWeight = weightMat.viewPart(0, 0, p, p);
-        DoubleMatrix2D betascale = betaWeight.copy().assign(Functions.mult(-tlam.get(0)));
-        DoubleMatrix2D absBeta = par.beta.copy().assign(Functions.abs);
-        betascale.assign(absBeta, Functions.div);
-        betascale.assign(Functions.plus(1));
-        betascale.assign(Functions.max(0));
+        if(tlam.get(0)!=0 && p > 0) {
+            DoubleMatrix2D betaWeight = weightMat.viewPart(0, 0, p, p);
+            DoubleMatrix2D betascale = betaWeight.copy().assign(Functions.mult(-tlam.get(0)));
+            DoubleMatrix2D absBeta = par.beta.copy().assign(Functions.abs);
+            betascale.assign(absBeta, Functions.div);
+            betascale.assign(Functions.plus(1));
+            betascale.assign(Functions.max(0));
 
-        double betaNorms  = 0;
 
-        //beta=beta.*betascale;
-        //par.beta.assign(betascale, Functions.mult);
-        for(int i= 0; i < p; i++){
-            for(int j = 0; j < p; j++){
-                double curVal =  par.beta.get(i,j);
-                if(curVal !=0){
-                    curVal=curVal * betascale.get(i,j);
-                    par.beta.set(i,j,curVal);
-                    betaNorms += Math.abs(betaWeight.get(i,j)*curVal);
+            //beta=beta.*betascale;
+            //par.beta.assign(betascale, Functions.mult);
+            for (int i = 0; i < p; i++) {
+                for (int j = 0; j < p; j++) {
+                    double curVal = par.beta.get(i, j);
+                    if (curVal != 0) {
+                        curVal = curVal * betascale.get(i, j);
+                        par.beta.set(i, j, curVal);
+                        betaNorms += Math.abs(betaWeight.get(i, j) * curVal);
+                    }
                 }
             }
         }
-
         //weight beta
         //betaw = (wv(1:p)'*wv(1:p)).*beta;
         //betanorms=sum(abs(betaw(:)));
@@ -986,17 +1125,19 @@ public class MGM extends ConvexProximal implements GraphSearch{
         end
         */
         double thetaNorms = 0;
-        for(int i = 0; i < p; i++){
-            for(int j = 0; j < lcumsum.length-1; j++){
-                DoubleMatrix1D tempVec = par.theta.viewColumn(i).viewPart(lcumsum[j], l[j]);
-                //double thetaScale = Math.max(0, 1 - tlam.get(1)*weightMat.get(i, p+j)/Math.sqrt(alg.norm2(tempVec)));
-                double foo = norm2(tempVec);
-                double thetaScale = Math.max(0, 1 - tlam.get(1) * weightMat.get(i, p+j)/norm2(tempVec));
-                tempVec.assign(Functions.mult(thetaScale));
-                thetaNorms += weightMat.get(i, p+j)*Math.sqrt(alg.norm2(tempVec));
+
+        if(tlam.get(1) != 0) {
+            for (int i = 0; i < p; i++) {
+                for (int j = 0; j < lcumsum.length - 1; j++) {
+                    DoubleMatrix1D tempVec = par.theta.viewColumn(i).viewPart(lcumsum[j], l[j]);
+                    //double thetaScale = Math.max(0, 1 - tlam.get(1)*weightMat.get(i, p+j)/Math.sqrt(alg.norm2(tempVec)));
+                    double foo = norm2(tempVec);
+                    double thetaScale = Math.max(0, 1 - tlam.get(1) * weightMat.get(i, p + j) / norm2(tempVec));
+                    tempVec.assign(Functions.mult(thetaScale));
+                    thetaNorms += weightMat.get(i, p + j) * Math.sqrt(alg.norm2(tempVec));
+                }
             }
         }
-
         /*
         for r=1:q
             for j=1:q
@@ -1010,16 +1151,19 @@ public class MGM extends ConvexProximal implements GraphSearch{
         end
          */
         double phiNorms = 0;
-        for(int i = 0; i < lcumsum.length-1; i++){
-            for(int j = i+1; j < lcumsum.length-1; j++){
-                DoubleMatrix2D tempMat = par.phi.viewPart(lcumsum[i], lcumsum[j], l[i], l[j]);
 
-                //not sure why this isnt Frobenius norm...
-                //double phiScale = Math.max(0, 1-tlam.get(2)*weightMat.get(p+i,p+j)/alg.norm2(tempMat));
-                double phiScale = Math.max(0, 1 - tlam.get(2) * weightMat.get(p + i,p+j)/norm2(tempMat));
-                //double phiScale = Math.max(0, 1-tlam.get(2)*weightMat.get(p+i,p+j)/alg.normF(tempMat));
-                tempMat.assign(Functions.mult(phiScale));
-                phiNorms += weightMat.get(p+i,p+j)*alg.normF(tempMat);
+        if(tlam.get(2) != 0) {
+            for (int i = 0; i < lcumsum.length - 1; i++) {
+                for (int j = i + 1; j < lcumsum.length - 1; j++) {
+                    DoubleMatrix2D tempMat = par.phi.viewPart(lcumsum[i], lcumsum[j], l[i], l[j]);
+
+                    //not sure why this isnt Frobenius norm...
+                    //double phiScale = Math.max(0, 1-tlam.get(2)*weightMat.get(p+i,p+j)/alg.norm2(tempMat));
+                    double phiScale = Math.max(0, 1 - tlam.get(2) * weightMat.get(p + i, p + j) / norm2(tempMat));
+                    //double phiScale = Math.max(0, 1-tlam.get(2)*weightMat.get(p+i,p+j)/alg.normF(tempMat));
+                    tempMat.assign(Functions.mult(phiScale));
+                    phiNorms += weightMat.get(p + i, p + j) * alg.normF(tempMat);
+                }
             }
         }
 
@@ -1333,31 +1477,38 @@ public class MGM extends ConvexProximal implements GraphSearch{
      * test non penalty use cases
      */
     private static void runTests2(){
-        Graph g = GraphConverter.convert("X1-->X2,X3-->X2,X4-->X5");
+        //Graph g = GraphConverter.convert("X1-->X2,X3-->X2,X4-->X5");
+        Graph g = GraphConverter.convert("X1-->X2");
         //simple graph pm im gen example
 
         HashMap<String, Integer> nd = new HashMap<>();
-        nd.put("X1", 0);
-        nd.put("X2", 0);
-        nd.put("X3", 4);
-        nd.put("X4", 4);
-        nd.put("X5", 4);
+        nd.put("X1", 4);
+        nd.put("X2", 4);
+        //nd.put("X3", 4);
+        //nd.put("X4", 4);
+        //nd.put("X5", 4);
 
         g = MixedUtils.makeMixedGraph(g, nd);
 
-        GeneralizedSemPm pm = MixedUtils.GaussianCategoricalPm(g, "Split(-1.5,-.5,.5,1.5)");
+        //GeneralizedSemPm pm = MixedUtils.GaussianCategoricalPm(g, "Split(-1.5,-1,1,1.5)");
+        GeneralizedSemPm pm = MixedUtils.GaussianCategoricalPm(g, "1");
         System.out.println(pm);
 
-        GeneralizedSemIm im = MixedUtils.GaussianCategoricalIm(pm);
+        GeneralizedSemIm im = MixedUtils.GaussianCategoricalIm(pm, true);
         System.out.println(im);
 
         int samps = 1000;
         DataSet ds = im.simulateDataAvoidInfinity(samps, false);
         ds = MixedUtils.makeMixedData(ds, nd);
+        DataSet dsC = MixedUtils.getContinousData(ds);
+        DataSet dsD = MixedUtils.getDiscreteData(ds);
+        System.out.println("Continuous: rows - " + dsC.getNumRows() + " columns - " + dsC.getNumColumns());
+        System.out.println("Discrete: rows - " + dsD.getNumRows() + " columns - " + dsD.getNumColumns());
         //System.out.println(ds);
 
-        double lambda = 0;
-        MGM model = new MGM(ds, new double[]{lambda, lambda, lambda});
+        double lambda = 0.00000;
+        MGM model = new MGM(ds.subsetColumns(new int[]{1}), new double[]{lambda, lambda, lambda});
+        //MGM model = new MGM(ds, new double[]{lambda, lambda, lambda});
 
         System.out.println("Init nll: " + model.smoothValue(model.params.toMatrix1D()));
         System.out.println("Init reg term: " + model.nonSmoothValue(model.params.toMatrix1D()));
@@ -1369,10 +1520,17 @@ public class MGM extends ConvexProximal implements GraphSearch{
 
         System.out.println("params:\n" + model.params);
         System.out.println("adjMat:\n" + model.adjMatFromMGM());
+
+        DataSet ds2 = im.simulateDataAvoidInfinity(samps, false);
+        ds2 = MixedUtils.makeMixedData(ds2, nd);
+
+        System.out.println("Test likelihood:\n" + model.smoothValue(model.params.toMatrix1D(), ds2.subsetColumns(new int[]{1})));
+        //System.out.println("Test likelihood:\n" + model.smoothValue(model.params.toMatrix1D(), ds2));
     }
 
+
     public static void main(String[] args){
-        runTests1();
+        runTests2();
     }
 
 }

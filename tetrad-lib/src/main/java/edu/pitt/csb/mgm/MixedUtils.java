@@ -346,9 +346,14 @@ public class MixedUtils {
         return semPm;
     }
 
+    //legacy
+    public static GeneralizedSemIm GaussianCategoricalIm(GeneralizedSemPm pm){
+        return GaussianCategoricalIm(pm, true);
+    }
+
     //This method is needed to normalize edge parameters for an Instantiated Mixed Model
     //public static GeneralizedSemIm GaussianCategoricalIm(GeneralizedSemPm pm, HashMap<String, Integer> nodeDists){
-    public static GeneralizedSemIm GaussianCategoricalIm(GeneralizedSemPm pm){
+    public static GeneralizedSemIm GaussianCategoricalIm(GeneralizedSemPm pm, boolean discParamRand){
 
         Map<String, Integer> nodeDists = getNodeDists(pm.getGraph());
 
@@ -375,25 +380,40 @@ public class MixedUtils {
                 List<String> params = getEdgeParams(n, par, pm);
                 //just use the first parameter as the "weight" for the whole edge
                 double w = im.getParameterValue(params.get(0));
-                double[] newWeights;
+               // double[] newWeights;
 
                 //d-d edges use one vector and permute edges, could use different strategy
                 if(cL > 0 && pL > 0) {
-                    newWeights = new double[pL*cL];
-                    PermutationGenerator pg = new PermutationGenerator(pL);
-                    int[] permInd = pg.next();
-                    double[] weightVals = generateMixedEdgeParams(w, pL);
+                    double[][] newWeights = new double[cL][pL];
+                    //List<Integer> indices = new ArrayList<Integer>(pL);
+                    //PermutationGenerator pg = new PermutationGenerator(pL);
+                    //int[] permInd = pg.next();
+                    double[] weightVals;
+                    if(discParamRand)
+                        weightVals = generateMixedEdgeParams(w, pL);
+                    else
+                        weightVals = evenSplitVector(w, pL);
+
+
                     for(int i = 0; i < cL; i++){
+                        weightVals = arrayPermute(weightVals);
+                        newWeights[i] = weightVals;
                         for(int j = 0; j < pL; j++){
                             int index = i*pL + j;
-                            im.setParameterValue(params.get(index), weightVals[permInd[j]]);
+                            im.setParameterValue(params.get(index), weightVals[j]);
                         }
-                        permInd = pg.next();
                     }
 
                 } else {
+                    double[] newWeights;
                     int curL = (pL > 0 ? pL: cL);
-                    newWeights = generateMixedEdgeParams(w, curL);
+                    if(discParamRand)
+                        newWeights = generateMixedEdgeParams(w, curL);
+                    else
+                        newWeights = evenSplitVector(w, pL);
+
+                    newWeights = arrayPermute(newWeights);
+
                     int count = 0;
                     for(String p : params){
                         im.setParameterValue(p, newWeights[count]);
@@ -417,6 +437,19 @@ public class MixedUtils {
         Node n1 = pm.getNode(s1);
         Node n2 = pm.getNode(s2);
         return getEdgeParams(n1, n2, pm);
+    }
+
+    public static double[] arrayPermute(double[] a){
+        double[] out = new double[a.length];
+        List<Double> l = new ArrayList<Double>(a.length);
+        for(int i =0; i < a.length; i++){
+            l.add(i, a[i]);
+        }
+        Collections.shuffle(l);
+        for(int i =0; i < a.length; i++){
+            out[i] = l.get(i);
+        }
+        return out;
     }
 
     //Given two nodes and a parameterized model return list of parameters corresponding to edge between them
@@ -504,6 +537,16 @@ public class MixedUtils {
             vec[i] *= scale;
         }
 
+        return vec;
+    }
+
+    //generates a vector of length L that starts with -w and increases with consistent steps to w
+    public static double[] evenSplitVector(double w, int L){
+        double[] vec = new double[L];
+        double step = 2*w/(L-1.0);
+        for(int i = 0; i < L; i++){
+            vec[i] = -w + i*step;
+        }
         return vec;
     }
 
