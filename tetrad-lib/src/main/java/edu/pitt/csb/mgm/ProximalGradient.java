@@ -47,7 +47,7 @@ public class ProximalGradient {
 
     private int printIter = 100;
     private double backtrackTol = 1e-10;
-
+    private boolean verbose = true;
 
     /**
      * Constructor, set parameters for a proximal gradient run
@@ -91,6 +91,9 @@ public class ProximalGradient {
         printIter = it;
     }
 
+    public void setVerbose(boolean v){
+        verbose = v;
+    }
 
     //run FISTA with step size backtracking attempt to speed up
     public DoubleMatrix1D learnBackTrack(ConvexProximal cp, DoubleMatrix1D Xin, double epsilon, int iterLimit) {
@@ -200,16 +203,20 @@ public class ProximalGradient {
             if (diffEdges == 0 && edgeConverge) {
                 noEdgeChangeCount++;
                 if(noEdgeChangeCount >= noEdgeChangeTol) {
-                    System.out.println("Edges converged at iter: " + iterCount + " with |dx|/|x|: " + dx);
-                    System.out.println("Iter: " + iterCount + " |dx|/|x|: " + dx + " normX: " + norm2(X) + " nll: " +
-                            Fx + " reg: " + Gx + " DiffEdges: " + diffEdges + " L: " + L);
+                    if(verbose) {
+                        System.out.println("Edges converged at iter: " + iterCount + " with |dx|/|x|: " + dx);
+                        System.out.println("Iter: " + iterCount + " |dx|/|x|: " + dx + " normX: " + norm2(X) + " nll: " +
+                                Fx + " reg: " + Gx + " DiffEdges: " + diffEdges + " L: " + L);
+                    }
                     break;
                 }
                 // negative noEdgeChangeTol stops when diffEdges <= |noEdgeChangeTol|
             } else if (noEdgeChangeTol < 0 && diffEdges <= Math.abs(noEdgeChangeTol)) {
-                System.out.println("Edges converged at iter: " + iterCount + " with |dx|/|x|: " + dx);
-                System.out.println("Iter: " + iterCount + " |dx|/|x|: " + dx + " normX: " + norm2(X) + " nll: " +
-                        Fx + " reg: " + Gx + " DiffEdges: " + diffEdges + " L: " + L);
+                if(verbose) {
+                    System.out.println("Edges converged at iter: " + iterCount + " with |dx|/|x|: " + dx);
+                    System.out.println("Iter: " + iterCount + " |dx|/|x|: " + dx + " normX: " + norm2(X) + " nll: " +
+                            Fx + " reg: " + Gx + " DiffEdges: " + diffEdges + " L: " + L);
+                }
                 break;
             } else {
                 noEdgeChangeCount = 0;
@@ -217,9 +224,11 @@ public class ProximalGradient {
 
             //edge converge should happen before params converge, unless epsilon is big
             if (dx < epsilon && !edgeConverge) {
-                System.out.println("Converged at iter: " + iterCount + " with |dx|/|x|: " + dx + " < epsilon: " + epsilon);
-                System.out.println("Iter: " + iterCount + " |dx|/|x|: " + dx + " normX: " + norm2(X) + " nll: " +
-                        Fx + " reg: " + Gx + " DiffEdges: " + diffEdges + " L: " + L);
+                if(verbose) {
+                    System.out.println("Converged at iter: " + iterCount + " with |dx|/|x|: " + dx + " < epsilon: " + epsilon);
+                    System.out.println("Iter: " + iterCount + " |dx|/|x|: " + dx + " normX: " + norm2(X) + " nll: " +
+                            Fx + " reg: " + Gx + " DiffEdges: " + diffEdges + " L: " + L);
+                }
                 break;
             }
 
@@ -240,8 +249,10 @@ public class ProximalGradient {
 
 
             if (iterCount % printIter == 0) {
-                System.out.println("Iter: " + iterCount + " |dx|/|x|: " + dx + " normX: " + norm2(X) + " nll: " +
-                        Fx + " reg: " + Gx + " DiffEdges: " + diffEdges + " L: " + L);
+                if(verbose) {
+                    System.out.println("Iter: " + iterCount + " |dx|/|x|: " + dx + " normX: " + norm2(X) + " nll: " +
+                            Fx + " reg: " + Gx + " DiffEdges: " + diffEdges + " L: " + L);
+                }
                 //System.out.println("Iter: " + iterCount + " |dx|/|x|: " + dx + " nll: " + negLogLikelihood(params) + " reg: " + regTerm(params));
             }
             //System.out.println("t: " + t);

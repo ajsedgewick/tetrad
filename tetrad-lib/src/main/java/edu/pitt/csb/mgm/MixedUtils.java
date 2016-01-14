@@ -543,7 +543,7 @@ public class MixedUtils {
     //generates a vector of length L that starts with -w and increases with consistent steps to w
     public static double[] evenSplitVector(double w, int L){
         double[] vec = new double[L];
-        double step = 2*w/(L-1.0);
+        double step = 2.0*w/(L-1.0);
         for(int i = 0; i < L; i++){
             vec[i] = -w + i*step;
         }

@@ -35,6 +35,7 @@ import edu.cmu.tetrad.data.DiscreteVariable;
 import edu.cmu.tetrad.sem.GeneralizedSemIm;
 import edu.cmu.tetrad.sem.GeneralizedSemPm;
 import edu.cmu.tetrad.util.StatUtils;
+import edu.cmu.tetrad.util.dist.Discrete;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -121,7 +122,6 @@ public class MGM extends ConvexProximal implements GraphSearch{
     }
 
     public MGM(DataSet ds, double[] lambda){
-        this.variables = ds.getVariables();
         DataSet dsCont = MixedUtils.getContinousData(ds);
         DataSet dsDisc = MixedUtils.getDiscreteData(ds);
         this.xDat = factory2D.make(dsCont.getDoubleData().toArray());
@@ -343,7 +343,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
     }
 
     // avoid underflow in log(sum(exp(x))) calculation
-    private double logsumexp(DoubleMatrix1D x){
+    public static double logsumexp(DoubleMatrix1D x){
         DoubleMatrix1D myX = x.copy();
         double maxX = StatUtils.max(myX.toArray());
         return Math.log(myX.assign(Functions.minus(maxX)).assign(Functions.exp).zSum()) + maxX;
@@ -1204,6 +1204,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
      */
     public void learn(double epsilon, int iterLimit){
         ProximalGradient pg = new ProximalGradient();
+        pg.setVerbose(false);
         setParams(new MGMParams(pg.learnBackTrack(this, params.toMatrix1D(), epsilon, iterLimit), p, lsum));
     }
 
@@ -1229,6 +1230,139 @@ public class MGM extends ConvexProximal implements GraphSearch{
         ProximalGradient pg = new ProximalGradient(.5, .9, true);
         pg.setEdgeChangeTol(edgeChangeTol);
         setParams(new MGMParams(pg.learnBackTrack(this, params.toMatrix1D(), 0.0, iterLimit), p, lsum));
+    }
+
+
+    public double nodeMargNll(int nodeIndex){
+        Node curNode = initVariables.get(nodeIndex);
+        int nodeI = variables.indexOf(curNode);
+        MGMParams par = new MGMParams(params);
+
+        upperTri(par.beta, 1);
+        par.beta.assign(alg.transpose(par.beta), Functions.plus);
+        par.beta.assign(factory2D.diagonal(par.betad), Functions.plus);
+
+        double outval = 0;
+        if(curNode instanceof ContinuousVariable){
+
+        } else if(curNode instanceof DiscreteVariable){
+            nodeI = nodeI - p;
+
+            for (int i = 0; i < q; i++) {
+                par.phi.viewPart(lcumsum[i], lcumsum[i], l[i], l[i]).assign(0);
+            }
+            upperTri(par.phi, 0);
+            par.phi.assign(alg.transpose(par.phi), Functions.plus);
+
+            //= params.phi.viewPart(0, lcumsum[nodeI], lsum, l[nodeI]);
+            DoubleMatrix2D curTheta = params.theta.viewPart(lcumsum[nodeI], 0, l[nodeI], p);
+            DoubleMatrix2D gamma = factory2D.make(p, l[nodeI]);
+            for(int i = 0; i < p; i++){
+                for(int j = 0; j < l[nodeI]; j++){
+                    gamma.set(i,j,par.alpha1.get(i) + curTheta.get(j,i));
+                }
+            }
+            DoubleMatrix2D curMat = alg.mult(alg.transpose(gamma), par.beta);
+            curMat = alg.mult(curMat, gamma).assign(Functions.mult(.5));
+
+
+            //DoubleMatrix1D phiSum =  margSum(alg.mult(dDat, par.phi.viewPart(0, lcumsum[nodeI], lsum, l[nodeI])),1);
+            //for(int j = 0; j < l[nodeI]; j++) {
+            //    curMat.viewColumn(j).assign(phiSum, Functions.plus);
+            //}
+
+            for(int i = 0; i < n; i++){
+
+                int curY = (int)yDat.get(i, nodeI);
+                DoubleMatrix1D curRow = params.alpha2.copy().assign(factory2D.diagonal(curMat), Functions.plus);
+                outval -= curRow.get(curY-1);
+                outval += logsumexp(curRow);
+            }
+        }
+        return outval;
+    }
+
+    /**
+     * Returns the conditional log likelihoo of the node with the given index given the rest of the nodes
+     * @param nodeIndex
+     * @return
+     */
+    public double nodeCondNll(int nodeIndex){
+        //index will be in terms of original DataSet so look up index in terms of MGM ordering (continuous then discrete)
+        Node curNode = initVariables.get(nodeIndex);
+        int nodeI = variables.indexOf(curNode);
+        MGMParams par = new MGMParams(params);
+
+        double outval = 0;
+        if(curNode instanceof ContinuousVariable){
+
+            upperTri(par.beta, 1);
+            par.beta.assign(alg.transpose(par.beta), Functions.plus);
+            //sqloss=-n/2*sum(log(betad))+...
+            //.5*norm((X-e*alpha1'-Xbeta-Dtheta)*diag(sqrt(betad)),'fro')^2;
+            double bss = par.betad.get(nodeI);
+
+
+            //Xbeta=X*beta*diag(1./betad);
+            DoubleMatrix1D xBeta = alg.mult(xDat, par.beta.viewColumn(nodeI).copy().assign(Functions.div(bss)));
+
+            //Dtheta=D*theta*diag(1./betad);
+            DoubleMatrix1D dTheta = factory1D.make(n);
+            if (q > 0) {
+                dTheta = alg.mult(dDat, par.theta.viewColumn(nodeI).copy().assign(Functions.div(bss)));
+            }
+
+            //outval += Math.log(bss / (2* Math.PI));
+            DoubleMatrix1D tempLoss = factory1D.make(n);//params.alpha1.get(nodeI) + alg.mult(- alg.mult(bst, xDat.viewColumn(nodeI))
+            for (int i = 0; i < n; i++) {
+                tempLoss.set(i, xDat.get(i, nodeI) - par.alpha1.get(nodeI) - xBeta.get(i) - dTheta.get(i));
+            }
+
+            //sqloss = -nT / 2.0 * par.betad.copy().assign(Functions.log).zSum() +
+            //.5 * Math.pow(alg.normF(alg.mult(tempLoss, factory2D.diagonal(par.betad.copy().assign(Functions.sqrt)))), 2);
+            //LH don't have this PI, does it matter??
+            //outval += -n* Math.log(bss/(2*Math.PI));
+            outval += -n* Math.log(bss);
+            tempLoss.assign(Functions.mult(Math.sqrt(bss)));
+            double temp = Math.pow(norm2(tempLoss),2);
+            outval += temp;
+            outval *= .5;
+
+        } else if(curNode instanceof DiscreteVariable){
+            nodeI = nodeI - p;
+
+            //fix phi to be symmetrical, zero diagonal
+            for (int i = 0; i < q; i++) {
+                par.phi.viewPart(lcumsum[i], lcumsum[i], l[i], l[i]).assign(0);
+            }
+            upperTri(par.phi, 0);
+            par.phi.assign(alg.transpose(par.phi), Functions.plus);
+
+            //wxprod=X*(theta')+D*phi+e*alpha2';
+            DoubleMatrix2D wxProd = factory2D.make(n, l[nodeI]);
+            if (p > 0) {
+                wxProd.assign(alg.mult(xDat, alg.transpose(par.theta.viewPart(lcumsum[nodeI], 0, l[nodeI], p))), Functions.plus);
+            }
+            //wxProd.assign(alg.mult(dDat.viewPart(0, lcumsum[nodeI], n, l[nodeI]), params.phi.viewPart(lcumsum[nodeI], 0, l[nodeI], lsum)), Functions.plus);
+            wxProd.assign(alg.mult(dDat, par.phi.viewPart(0, lcumsum[nodeI], lsum, l[nodeI])), Functions.plus);
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < l[nodeI]; j++) {
+                    wxProd.set(i, j, wxProd.get(i, j) + par.alpha2.get(lcumsum[nodeI]+j));
+                }
+            }
+
+            for (int k = 0; k < n; k++) {
+                DoubleMatrix1D curRow = wxProd.viewRow(k);
+
+                outval -= curRow.get((int) yDat.get(k, nodeI) - 1);
+                outval += logsumexp(curRow);
+            }
+
+
+        } else {
+            throw new IllegalArgumentException("Node is neither discrete nor continuous!");
+        }
+        return outval;///((double) n);
     }
 
     /**
@@ -1507,7 +1641,59 @@ public class MGM extends ConvexProximal implements GraphSearch{
         //System.out.println(ds);
 
         double lambda = 0.00000;
-        MGM model = new MGM(ds.subsetColumns(new int[]{1}), new double[]{lambda, lambda, lambda});
+        //MGM model = new MGM(ds.subsetColumns(new int[]{1}), new double[]{lambda, lambda, lambda});
+        MGM model = new MGM(ds, new double[]{lambda, lambda, lambda});
+
+        System.out.println("Init nll: " + model.smoothValue(model.params.toMatrix1D()));
+        System.out.println("Init reg term: " + model.nonSmoothValue(model.params.toMatrix1D()));
+
+        model.learn(1e-8,1000);
+
+        System.out.println("Learned nll: " + model.smoothValue(model.params.toMatrix1D()));
+        System.out.println("Learned reg term: " + model.nonSmoothValue(model.params.toMatrix1D()));
+
+        System.out.println("params:\n" + model.params);
+        System.out.println("adjMat:\n" + model.adjMatFromMGM());
+
+        DataSet ds2 = im.simulateDataAvoidInfinity(samps, false);
+        ds2 = MixedUtils.makeMixedData(ds2, nd);
+
+        //System.out.println("Test likelihood:\n" + model.smoothValue(model.params.toMatrix1D(), ds2.subsetColumns(new int[]{1})));
+        System.out.println("Test likelihood:\n" + model.smoothValue(model.params.toMatrix1D(), ds2));
+    }
+
+    private static void runTests3(){
+        //Graph g = GraphConverter.convert("X1-->X2,X3-->X2,X4-->X5");
+        Graph g = GraphConverter.convert("X1-->X2");
+        //simple graph pm im gen example
+
+        HashMap<String, Integer> nd = new HashMap<>();
+        nd.put("X1", 0);
+        nd.put("X2", 0);
+        //nd.put("X3", 4);
+        //nd.put("X4", 4);
+        //nd.put("X5", 4);
+
+        g = MixedUtils.makeMixedGraph(g, nd);
+
+        //GeneralizedSemPm pm = MixedUtils.GaussianCategoricalPm(g, "Split(-1.5,-1,1,1.5)");
+        GeneralizedSemPm pm = MixedUtils.GaussianCategoricalPm(g, "1");
+        System.out.println(pm);
+
+        GeneralizedSemIm im = MixedUtils.GaussianCategoricalIm(pm, true);
+        System.out.println(im);
+
+        int samps = 1000;
+        DataSet ds = im.simulateDataAvoidInfinity(samps, false);
+        ds = MixedUtils.makeMixedData(ds, nd);
+        DataSet dsC = MixedUtils.getContinousData(ds);
+        DataSet dsD = MixedUtils.getDiscreteData(ds);
+        System.out.println("Continuous: rows - " + dsC.getNumRows() + " columns - " + dsC.getNumColumns());
+        System.out.println("Discrete: rows - " + dsD.getNumRows() + " columns - " + dsD.getNumColumns());
+        //System.out.println(ds);
+
+        double lambda = 0.00000;
+        MGM model = new MGM(ds.subsetColumns(new int[]{0}), new double[]{lambda, lambda, lambda});
         //MGM model = new MGM(ds, new double[]{lambda, lambda, lambda});
 
         System.out.println("Init nll: " + model.smoothValue(model.params.toMatrix1D()));
@@ -1524,13 +1710,22 @@ public class MGM extends ConvexProximal implements GraphSearch{
         DataSet ds2 = im.simulateDataAvoidInfinity(samps, false);
         ds2 = MixedUtils.makeMixedData(ds2, nd);
 
-        System.out.println("Test likelihood:\n" + model.smoothValue(model.params.toMatrix1D(), ds2.subsetColumns(new int[]{1})));
+        //for(Node node : ds.getVariables()){
+            Node node = ds.getVariable(0);
+            System.out.println("Node: " + node.getName() + " CondNLL: " + model.nodeCondNll(ds.getVariables().indexOf(node)));
+        //}
+
+        System.out.println("Var: " + StatUtils.variance(ds.getDoubleData().getColumn(0).toArray()));
+        System.out.println("Res: " + .5*ds.getNumRows()* Math.log(StatUtils.variance(ds.getDoubleData().getColumn(0).toArray())/(2*Math.PI)));
+
+        //System.out.println("Test likelihood:\n" + model.smoothValue(model.params.toMatrix1D(), ds2.subsetColumns(new int[]{1})));
         //System.out.println("Test likelihood:\n" + model.smoothValue(model.params.toMatrix1D(), ds2));
     }
 
 
+
     public static void main(String[] args){
-        runTests2();
+        runTests3();
     }
 
 }
