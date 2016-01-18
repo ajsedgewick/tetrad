@@ -373,6 +373,8 @@ public class MixedUtils {
                 }
                 int cL = nodeDists.get(n.getName());
                 int pL = nodeDists.get(par.getName());
+
+                // c-c edges don't need params changed
                 if(cL==0 && pL==0){
                     continue;
                 }
@@ -382,37 +384,49 @@ public class MixedUtils {
                 double w = im.getParameterValue(params.get(0));
                // double[] newWeights;
 
-                //d-d edges use one vector and permute edges, could use different strategy
+                // d-d edges use one vector and permute edges, could use different strategy
                 if(cL > 0 && pL > 0) {
                     double[][] newWeights = new double[cL][pL];
                     //List<Integer> indices = new ArrayList<Integer>(pL);
                     //PermutationGenerator pg = new PermutationGenerator(pL);
                     //int[] permInd = pg.next();
+                    double bgW = w/((double) pL - 1.0);
                     double[] weightVals;
-                    if(discParamRand)
+
+                    /*if(discParamRand)
                         weightVals = generateMixedEdgeParams(w, pL);
                     else
                         weightVals = evenSplitVector(w, pL);
+                    */
+                    int [] weightInds = new int[cL];
+                    for(int i = 0; i < cL; i++){
+                        if(i < pL)
+                            weightInds[i] = i;
+                        else
+                            weightInds[i] = i % pL;
+                    }
+
+                    if(discParamRand)
+                        weightInds = arrayPermute(weightInds);
 
 
                     for(int i = 0; i < cL; i++){
-                        weightVals = arrayPermute(weightVals);
-                        newWeights[i] = weightVals;
                         for(int j = 0; j < pL; j++){
                             int index = i*pL + j;
-                            im.setParameterValue(params.get(index), weightVals[j]);
+                            if(weightInds[i]==j)
+                                im.setParameterValue(params.get(index), w);
+                            else
+                                im.setParameterValue(params.get(index), -bgW);
                         }
                     }
-
+                //params for c-d edges
                 } else {
                     double[] newWeights;
                     int curL = (pL > 0 ? pL: cL);
                     if(discParamRand)
                         newWeights = generateMixedEdgeParams(w, curL);
                     else
-                        newWeights = evenSplitVector(w, pL);
-
-                    newWeights = arrayPermute(newWeights);
+                        newWeights = evenSplitVector(w, curL);
 
                     int count = 0;
                     for(String p : params){
@@ -439,6 +453,7 @@ public class MixedUtils {
         return getEdgeParams(n1, n2, pm);
     }
 
+    //randomly permute an array of doubles
     public static double[] arrayPermute(double[] a){
         double[] out = new double[a.length];
         List<Double> l = new ArrayList<Double>(a.length);
@@ -450,6 +465,30 @@ public class MixedUtils {
             out[i] = l.get(i);
         }
         return out;
+    }
+
+    //randomly permute array of ints
+    public static int[] arrayPermute(int[] a){
+        int[] out = new int[a.length];
+        List<Integer> l = new ArrayList<Integer>(a.length);
+        for(int i =0; i < a.length; i++){
+            l.add(i, a[i]);
+        }
+        Collections.shuffle(l);
+        for(int i =0; i < a.length; i++){
+            out[i] = l.get(i);
+        }
+        return out;
+    }
+
+    //generates a vector of length L that starts with -w and increases with consistent steps to w
+    public static double[] evenSplitVector(double w, int L){
+        double[] vec = new double[L];
+        double step = 2.0*w/(L-1.0);
+        for(int i = 0; i < L; i++){
+            vec[i] = -w + i*step;
+        }
+        return vec;
     }
 
     //Given two nodes and a parameterized model return list of parameters corresponding to edge between them
@@ -537,16 +576,6 @@ public class MixedUtils {
             vec[i] *= scale;
         }
 
-        return vec;
-    }
-
-    //generates a vector of length L that starts with -w and increases with consistent steps to w
-    public static double[] evenSplitVector(double w, int L){
-        double[] vec = new double[L];
-        double step = 2.0*w/(L-1.0);
-        for(int i = 0; i < L; i++){
-            vec[i] = -w + i*step;
-        }
         return vec;
     }
 

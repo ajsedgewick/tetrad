@@ -1663,16 +1663,17 @@ public class MGM extends ConvexProximal implements GraphSearch{
     }
 
     private static void runTests3(){
-        //Graph g = GraphConverter.convert("X1-->X2,X3-->X2,X4-->X5");
-        Graph g = GraphConverter.convert("X1-->X2");
+        Graph g = GraphConverter.convert("X1-->X2,X3-->X2,X4-->X5, X5-->X6");
+        //Graph g = GraphConverter.convert("X1-->X2");
         //simple graph pm im gen example
 
         HashMap<String, Integer> nd = new HashMap<>();
         nd.put("X1", 0);
-        nd.put("X2", 0);
-        //nd.put("X3", 4);
-        //nd.put("X4", 4);
-        //nd.put("X5", 4);
+        nd.put("X2", 3);
+        nd.put("X3", 4);
+        nd.put("X4", 4);
+        nd.put("X5", 0);
+        nd.put("X6", 4);
 
         g = MixedUtils.makeMixedGraph(g, nd);
 
@@ -1680,7 +1681,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
         GeneralizedSemPm pm = MixedUtils.GaussianCategoricalPm(g, "1");
         System.out.println(pm);
 
-        GeneralizedSemIm im = MixedUtils.GaussianCategoricalIm(pm, true);
+        GeneralizedSemIm im = MixedUtils.GaussianCategoricalIm(pm, false);
         System.out.println(im);
 
         int samps = 1000;
