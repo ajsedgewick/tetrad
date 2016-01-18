@@ -351,8 +351,19 @@ public class MixedUtils {
         return GaussianCategoricalIm(pm, true);
     }
 
-    //This method is needed to normalize edge parameters for an Instantiated Mixed Model
-    //public static GeneralizedSemIm GaussianCategoricalIm(GeneralizedSemPm pm, HashMap<String, Integer> nodeDists){
+    /**
+     *    This method is needed to normalize edge parameters for an Instantiated Mixed Model
+     *    Generates edge parameters for c-d and d-d edges from a single weight, abs(w), drawn by the normal IM constructor.
+     *    Abs(w) is used for d-d edges.
+     *
+     *    For deterministic, c-d are evenly spaced between -w and w, and d-d are a matrix with w on the diagonal and
+     *    -w/(categories-1) in the rest.
+     *    For random, c-d params are uniformly drawn from 0 to 1 then transformed to have w as max value and sum to 0.
+     *
+     * @param pm
+     * @param discParamRand true for random edge generation behavior, false for deterministic
+     * @return
+     */
     public static GeneralizedSemIm GaussianCategoricalIm(GeneralizedSemPm pm, boolean discParamRand){
 
         Map<String, Integer> nodeDists = getNodeDists(pm.getGraph());
@@ -380,7 +391,7 @@ public class MixedUtils {
                 }
 
                 List<String> params = getEdgeParams(n, par, pm);
-                //just use the first parameter as the "weight" for the whole edge
+                // just use the first parameter as the "weight" for the whole edge
                 double w = im.getParameterValue(params.get(0));
                // double[] newWeights;
 
@@ -390,6 +401,7 @@ public class MixedUtils {
                     //List<Integer> indices = new ArrayList<Integer>(pL);
                     //PermutationGenerator pg = new PermutationGenerator(pL);
                     //int[] permInd = pg.next();
+                    w = Math.abs(w);
                     double bgW = w/((double) pL - 1.0);
                     double[] weightVals;
 
