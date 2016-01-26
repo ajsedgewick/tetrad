@@ -823,12 +823,17 @@ public class MixedUtils {
             matrix.set(map.get(node2), map.get(node1), 1.0);
 
         }
+
         return matrix;
     }
 
     public static DoubleMatrix2D graphToMatrix(Graph graph){
         return graphToMatrix(graph, 1, 1);
     }
+
+/*    public static DataSet GenerateMixedDataSimple(Graph g, HashMap<String, Integer> nd){
+
+    }*/
 
     //main for testing
     public static void main(String[] args){
