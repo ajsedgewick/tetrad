@@ -346,6 +346,28 @@ public class MixedUtils {
         return semPm;
     }
 
+    /**
+     * Set all existing parameters that begins with sta to template and also set template for any new parameters
+     *
+     * @param sta
+     * @param template
+     * @param pm
+     * @return
+     */
+    public static void setStartsWith(String sta, String template, GeneralizedSemPm pm){
+        try {
+            pm.setStartsWithParametersTemplate(sta, template);
+            for (String param : pm.getParameters()) {
+                if (param.startsWith(sta)) {
+                    pm.setParameterExpression(param, template);
+                }
+            }
+        } catch(Throwable t){
+            t.printStackTrace();
+        }
+        return;
+    }
+
     //legacy
     public static GeneralizedSemIm GaussianCategoricalIm(GeneralizedSemPm pm){
         return GaussianCategoricalIm(pm, true);
@@ -862,8 +884,23 @@ public class MixedUtils {
         g.addDirectedEdge(g.getNode("X3"), g.getNode("X4"));
         g.addDirectedEdge(g.getNode("X4"), g.getNode("X5"));
         */
-        GeneralizedSemPm pm = GaussianCategoricalPm(g, "Split(-1.5,-.5,.5,1.5)");
+        GeneralizedSemPm pm = GaussianCategoricalPm(g, "Split(-1.5,-1,1,1.5)");
         System.out.println(pm);
+
+        System.out.println("STARTS WITH");
+        System.out.println(pm.getStartsWithParameterTemplate("C"));
+
+        try{
+            MixedUtils.setStartsWith("C", "Split(-.9,-.5,.5,.9)", pm);
+        }
+        catch (Throwable t) {t.printStackTrace();}
+
+        System.out.println("STARTS WITH");
+        System.out.println(pm.getStartsWithParameterTemplate("C"));
+
+
+        System.out.println(pm);
+
 
         GeneralizedSemIm im = GaussianCategoricalIm(pm);
         System.out.println(im);
