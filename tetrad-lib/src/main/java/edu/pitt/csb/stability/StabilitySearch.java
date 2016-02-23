@@ -697,7 +697,7 @@ public class StabilitySearch {
     private static DataSet genTestData(){
         Graph g = GraphConverter.convert("X1-->X2,X3-->X2,X4-->X5");
         //Graph g = GraphConverter.convert("X1-->X2");
-        //simple graph pm im gen example
+        //simple graph pm im gen examp
 
         HashMap<String, Integer> nd = new HashMap<>();
         nd.put("X1", 0);
@@ -772,7 +772,7 @@ public class StabilitySearch {
             s1.add(i);
         }
 
-        for(int i = 0; i < 1000; i++){
+        for(int i = 0; i < 101; i++){
             samps.add(s1);
         }
 
@@ -782,7 +782,8 @@ public class StabilitySearch {
 
         //StabilitySearch ss = new StabilitySearch(ds, mgm, N, 500);
         StabilitySearch ss = new StabilitySearch(ds, mgm, samps);
-        ss.searchParallel();
+        //ss.searchParallel();
+        ss.searchSerial();
         DoubleMatrix2D xi = ss.getThetaMat();
         long end = System.currentTimeMillis();
         double time1 = ((end-start)/1000.0);
@@ -829,6 +830,17 @@ public class StabilitySearch {
     //some tests...
     public static void main(String[] args){
         listTests();
+        /*
+        String a = "1";
+        String b = Integer.toString(1);
+        String c = new String("1");
+        String d = Integer.toString(1);
+
+        System.out.println("a == b:" + (a==b));
+        System.out.println("a == c:" + (a==c));
+        System.out.println("b == c:" + (b==c));
+        System.out.println("b == d:" + (b==d));
+        */
         tests3();
     }
 }

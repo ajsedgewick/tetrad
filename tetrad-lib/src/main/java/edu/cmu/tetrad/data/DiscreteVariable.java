@@ -546,11 +546,21 @@ public final class DiscreteVariable extends AbstractVariable
             STORED_CATEGORY_LISTS = new ArrayList<>();
         }
 
+        /*
         for (LinkedList<String> list : STORED_CATEGORY_LISTS) {
             if (categorySet.equals(new HashSet<>(list))) {
                 return list;
             }
+        }*/
+        Iterator<LinkedList<String>> iter = STORED_CATEGORY_LISTS.iterator();
+        while(iter.hasNext()){
+            LinkedList<String> list = iter.next();
+
+            if(categoryList.equals(new HashSet<>(list))) {
+                return list;
+            }
         }
+
 
         LinkedList<String> newList = new LinkedList<>(categoryList);
         STORED_CATEGORY_LISTS.add(newList);
