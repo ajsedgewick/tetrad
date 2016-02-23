@@ -68,7 +68,7 @@ public final class DiscreteVariable extends AbstractVariable
      * Since this "bulletin board" must be reconstructed each time Tetrad
      * restarts, this field must be transient.
      */
-    private static List<LinkedList<String>> STORED_CATEGORY_LISTS = null;
+    private List<LinkedList<String>> STORED_CATEGORY_LISTS = null;
 
     /**
      * The list of categories for the variable. Since the order must be
@@ -534,7 +534,7 @@ public final class DiscreteVariable extends AbstractVariable
         return this.pcs;
     }
 
-    private static List<String> getStoredCategoryList(
+    private List<String> getStoredCategoryList(
             List<String> categoryList) {
         if (categoryList == null) {
             throw new NullPointerException();
@@ -552,7 +552,7 @@ public final class DiscreteVariable extends AbstractVariable
                 return list;
             }
         }*/
-        Iterator<LinkedList<String>> iter = STORED_CATEGORY_LISTS.iterator();
+        final Iterator<LinkedList<String>> iter = STORED_CATEGORY_LISTS.iterator();
         while(iter.hasNext()){
             LinkedList<String> list = iter.next();
 
