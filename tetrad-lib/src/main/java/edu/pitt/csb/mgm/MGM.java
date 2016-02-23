@@ -1723,8 +1723,6 @@ public class MGM extends ConvexProximal implements GraphSearch{
         //System.out.println("Test likelihood:\n" + model.smoothValue(model.params.toMatrix1D(), ds2));
     }
 
-
-
     public static void main(String[] args){
         runTests3();
     }

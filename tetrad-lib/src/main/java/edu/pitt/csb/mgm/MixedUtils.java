@@ -129,6 +129,26 @@ public class MixedUtils {
         return ColtDataSet.makeData(mixVars, dsCont.getDoubleData());
     }
 
+    /**
+     * Makes a deep copy of a dataset (Nodes copied as well). Useful for paralellization
+     * @param ds dataset to be copied
+     * @return
+     */
+    public static ColtDataSet deepCopy(ColtDataSet ds){
+        List<Node> vars = new ArrayList<>(ds.getNumColumns());
+        for(Node n : ds.getVariables()){
+            if(n instanceof ContinuousVariable)
+                vars.add(new ContinuousVariable((ContinuousVariable)n));
+            else if (n instanceof DiscreteVariable)
+                vars.add(new DiscreteVariable((DiscreteVariable) n));
+            else
+                throw new IllegalArgumentException("Variable type of node " + n + "could not be determined");
+        }
+        ColtDataSet out = ColtDataSet.makeData(vars,ds.getDoubleData());
+
+        return out;
+    }
+
     //Takes a mixed dataset and returns only data corresponding to ContinuousVariables in order
     public static DataSet getContinousData(DataSet ds){
         ArrayList<Node> contVars = new ArrayList<Node>();
