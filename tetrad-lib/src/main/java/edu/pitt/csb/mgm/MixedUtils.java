@@ -22,6 +22,7 @@
 package edu.pitt.csb.mgm;
 
 import cern.colt.matrix.DoubleFactory2D;
+import cern.colt.matrix.DoubleMatrix1D;
 import cern.colt.matrix.DoubleMatrix2D;
 import cern.colt.matrix.linalg.Algebra;
 import edu.cmu.tetrad.calculator.expression.Expression;
@@ -179,6 +180,49 @@ public class MixedUtils {
             i++;
         }
         return levels;
+    }
+
+    /**
+     * return vector of the maximum of each column in m (as ints, i.e. for discrete data)
+     * @param m
+     * @return
+     */
+    public static int[] colMax(DoubleMatrix2D m){
+        int[] maxVec = new int[m.columns()];
+        for(int i = 0; i < m.columns(); i++){
+            double curmax = -1;
+            for(int j = 0; j < m.rows(); j++){
+                double curval = m.getQuick(j,i);
+                if(curval>curmax){
+                    curmax = curval;
+                }
+            }
+            maxVec[i] = (int) curmax;
+        }
+        return maxVec;
+    }
+
+    public static double vecMax(DoubleMatrix1D vec){
+        double curMax = Double.NEGATIVE_INFINITY;
+        for(int i = 0; i < vec.size(); i++){
+            double curVal = vec.getQuick(i);
+            if(curVal>curMax){
+                curMax = curVal;
+            }
+        }
+        return curMax;
+    }
+
+    public static double numVals(DoubleMatrix1D vec){
+        return valSet(vec).size();
+    }
+
+    public static Set<Double> valSet(DoubleMatrix1D vec){
+        Set<Double> vals = new HashSet<>();
+        for(int i = 0; i < vec.size(); i++){
+            vals.add(vec.getQuick(i));
+        }
+        return vals;
     }
 
     //generate PM from trueGraph for mixed Gaussian and Trinary variables

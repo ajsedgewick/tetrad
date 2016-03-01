@@ -70,6 +70,7 @@ public class StabilitySearch {
     private int numSubs;
     private int subSize;
     private boolean cpss;
+    private boolean verbose = false;
     private String runDir = null;
     private PrintWriter pwLog = null;
     private PrintWriter pwTime = null;
@@ -182,6 +183,15 @@ public class StabilitySearch {
     }
 
     /**
+     * sets verbose flag in DataGraphSearch
+     * @param v
+     */
+    public void setVerbose(boolean v){
+        this.verbose = v;
+        gs.verbose = v;
+    }
+
+    /**
      * save log file to run directory
      */
     public void writeLog(){
@@ -219,6 +229,24 @@ public class StabilitySearch {
             pw.flush();
         } catch (Throwable T) {
             T.printStackTrace();
+        }
+    }
+
+    /**
+     * dir is the directory to save the subsamples in
+     * @param dir
+     */
+    public void saveSubsampledData(String dir){
+        saveSubsampledData(dir, "");
+    }
+
+    public void saveSubsampledData(String dir, String prefix){
+        if(prefix.length()!=0){
+            prefix = prefix + "_";
+        }
+        for(int s = 0; s < samps.size(); s++){
+            DataSet dataSubSamp = data.subsetRows(ArrayUtils.toPrimitive(samps.get(s).toArray(new Integer[0])));
+
         }
 
     }
@@ -318,24 +346,40 @@ public class StabilitySearch {
             protected void compute(){
                 if (to - from <= chunk) {
                     for (int s = from; s < to; s++) {
-                        DataGraphSearch curGs;
-                        DataSet dataSubSamp;
-                        synchronized (gs) {
+                        try {
+                            synchronized (edgeStab) {
+                                pwLog.write("Starting subsamp " + s + "...\n");
+                                pwLog.flush();
+                            }
+                            DataGraphSearch curGs;
+                            DataSet dataSubSamp;
+                            //synchronized (gs) {
                             int[] inds = ArrayUtils.toPrimitive(samps.get(s).toArray(new Integer[0]));
-                            dataSubSamp = MixedUtils.deepCopy((ColtDataSet)data.subsetRows(inds));
+                            dataSubSamp = MixedUtils.deepCopy((ColtDataSet) data.subsetRows(inds));
                             curGs = gs.copy();
-                        }
+                            //}
 
-                        long start = System.currentTimeMillis();
-                        Graph g = curGs.search(dataSubSamp);
-                        long end = System.currentTimeMillis();
+                            long start = System.currentTimeMillis();
 
-                        synchronized (edgeStab){
-                            addEdges(g);
-                            if(runDir != null) {
-                                saveNet(s, g);
-                                pwTime.write("sn" + s + "\t" + (end-start)/1000.0 + "\n");
-                                pwTime.flush();
+                            Graph g = curGs.search(dataSubSamp);
+                            long end = System.currentTimeMillis();
+
+                            synchronized (edgeStab) {
+                                addEdges(g);
+                                if (runDir != null) {
+                                    saveNet(s, g);
+                                    pwTime.write("sn" + s + "\t" + (end - start) / 1000.0 + "\n");
+                                    pwTime.flush();
+                                }
+                                pwLog.write("Subsamp " + s + " complete\n");
+                                pwLog.flush();
+                            }
+
+                        } catch (Throwable t){
+                            synchronized (edgeStab) {
+                                pwLog.write("Subsamp " + s + " failed. ");
+                                pwLog.write("Message: " + t.getMessage() + "\n");
+                                pwLog.flush();
                             }
                         }
 
@@ -675,7 +719,7 @@ public class StabilitySearch {
 
         double lambda = .1;
         //SearchWrappers.MGMWrapper mgm = new SearchWrappers.MGMWrapper(new double[]{lambda, lambda, lambda});
-        SearchWrappers.PcStableWrapper mgm = new SearchWrappers.PcStableWrapper(new double[]{.05});
+        SearchWrappers.PcStableWrapper mgm = new SearchWrappers.PcStableWrapper(false, new double[]{.05});
         long start = System.currentTimeMillis();
         StabilitySearch ss = new StabilitySearch(ds, mgm, 20, 200);
         ss.searchSerial();
@@ -731,7 +775,7 @@ public class StabilitySearch {
 
         double lambda = .05;
         //SearchWrappers.MGMWrapper mgm = new SearchWrappers.MGMWrapper(new double[]{lambda, lambda, lambda});
-        SearchWrappers.PcStableWrapper mgm = new SearchWrappers.PcStableWrapper(new double[]{.05});
+        SearchWrappers.PcStableWrapper mgm = new SearchWrappers.PcStableWrapper(false, new double[]{.05});
         long start = System.currentTimeMillis();
         int N = 100;
         //StabilitySearch ss = new StabilitySearch(ds, mgm, N, 500);
@@ -777,7 +821,7 @@ public class StabilitySearch {
         }
 
         //SearchWrappers.MGMWrapper mgm = new SearchWrappers.MGMWrapper(new double[]{lambda, lambda, lambda});
-        SearchWrappers.PcStableWrapper mgm = new SearchWrappers.PcStableWrapper(new double[]{.05});
+        SearchWrappers.PcStableWrapper mgm = new SearchWrappers.PcStableWrapper(false, new double[]{.05});
         long start = System.currentTimeMillis();
 
         //StabilitySearch ss = new StabilitySearch(ds, mgm, N, 500);

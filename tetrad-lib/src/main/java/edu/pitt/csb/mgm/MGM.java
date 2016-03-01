@@ -38,10 +38,7 @@ import edu.cmu.tetrad.util.StatUtils;
 import edu.cmu.tetrad.util.dist.Discrete;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 //import cern.colt.Arrays;
 //import la.matrix.Matrix;
@@ -84,9 +81,10 @@ public class MGM extends ConvexProximal implements GraphSearch{
     private int[] l;
     private int lsum;
     private int[] lcumsum;
-    int p;
-    int q;
-    int n;
+    private int p;
+    private int q;
+    private int n;
+    private boolean verbose = true;
 
     //parameter weights
     private DoubleMatrix1D weights;
@@ -126,7 +124,6 @@ public class MGM extends ConvexProximal implements GraphSearch{
         DataSet dsDisc = MixedUtils.getDiscreteData(ds);
         this.xDat = factory2D.make(dsCont.getDoubleData().toArray());
         this.yDat = factory2D.make(dsDisc.getDoubleData().toArray());
-        this.l = MixedUtils.getDiscLevels(ds);
         this.p = xDat.columns();
         this.q = yDat.columns();
         this.n = (xDat.rows()==0) ? yDat.rows() : xDat.rows();;
@@ -142,6 +139,9 @@ public class MGM extends ConvexProximal implements GraphSearch{
 
         //Data is checked for 0 or 1 indexing and fore missing levels
         fixData(xDat, yDat);
+
+        //this MUST come after fixData
+        this.l = MixedUtils.colMax(yDat);//MixedUtils.getDiscLevels(ds);
         initParameters();
         calcWeights();
         //makeDummy();
@@ -310,6 +310,8 @@ public class MGM extends ConvexProximal implements GraphSearch{
         return params;
     }
 
+    public void setVerbose(boolean verb) {this.verbose = verb;}
+
     //create column major vector from matrix (i.e. concatenate columns)
     public static DoubleMatrix1D flatten(DoubleMatrix2D m){
         DoubleMatrix1D[] colArray = new DoubleMatrix1D[m.columns()];
@@ -385,7 +387,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
     /**
      * Convert discrete data (in yDat) to a matrix of dummy variables
      */
-    private static DoubleMatrix2D makeDummy(DoubleMatrix2D yDat, int[] levels){
+    public static DoubleMatrix2D makeDummy(DoubleMatrix2D yDat, int[] levels){
         if(yDat.columns()==0) {return yDat.copy();}
 
         int n = yDat.rows();
@@ -413,7 +415,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
     /**
      * checks if yDat is zero indexed and converts to 1 index. zscores x
      */
-    private static void fixData(DoubleMatrix2D xDat, DoubleMatrix2D yDat){
+    public static void fixData(DoubleMatrix2D xDat, DoubleMatrix2D yDat){
         if(yDat.columns()>0) {
             double ymin = StatUtils.min(flatten(yDat).toArray());
             if (ymin < 0 || ymin > 1)
@@ -421,6 +423,20 @@ public class MGM extends ConvexProximal implements GraphSearch{
 
             if (ymin == 0) {
                 yDat.assign(Functions.plus(1.0));
+            }
+
+            //converts y levels to integers starting with 1
+            for(int i = 0; i < yDat.columns(); i++){
+                DoubleMatrix1D curCol = yDat.viewColumn(i);
+                ArrayList curVals = new ArrayList<Double>(MixedUtils.valSet(curCol));
+                if(curVals.size() <= 1)
+                    throw new IllegalArgumentException("Only one value found in discrete variable " + i);
+
+                Collections.sort(curVals);
+
+                for(int j = 0; j < yDat.rows(); j++){
+                    curCol.set(j, curVals.indexOf(curCol.getQuick(j)) + 1.0);
+                }
             }
         }
 
@@ -1204,7 +1220,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
      */
     public void learn(double epsilon, int iterLimit){
         ProximalGradient pg = new ProximalGradient();
-        pg.setVerbose(false);
+        pg.setVerbose(verbose);
         setParams(new MGMParams(pg.learnBackTrack(this, params.toMatrix1D(), epsilon, iterLimit), p, lsum));
     }
 
@@ -1216,6 +1232,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
      */
     public void learnEdges(int iterLimit){
         ProximalGradient pg = new ProximalGradient(.5, .9, true);
+        pg.setVerbose(verbose);
         setParams(new MGMParams(pg.learnBackTrack(this, params.toMatrix1D(), 0.0, iterLimit), p, lsum));
     }
 
@@ -1228,6 +1245,7 @@ public class MGM extends ConvexProximal implements GraphSearch{
      */
     public void learnEdges(int iterLimit, int edgeChangeTol){
         ProximalGradient pg = new ProximalGradient(.5, .9, true);
+        pg.setVerbose(verbose);
         pg.setEdgeChangeTol(edgeChangeTol);
         setParams(new MGMParams(pg.learnBackTrack(this, params.toMatrix1D(), 0.0, iterLimit), p, lsum));
     }

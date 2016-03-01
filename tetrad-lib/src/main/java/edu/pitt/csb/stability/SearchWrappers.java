@@ -35,43 +35,48 @@ import edu.pitt.csb.mgm.MixedUtils;
 public class SearchWrappers {
     public static class PcStableWrapper extends DataGraphSearch {
         //should be one param for the alpha level of the independance test
-        public PcStableWrapper(double... params) {
-            super(params);
+        public PcStableWrapper(boolean verbose, double... params) {
+            super(verbose, params);
         }
 
-        public PcStableWrapper copy(){return new PcStableWrapper(searchParams);}
+        public PcStableWrapper copy(){return new PcStableWrapper(verbose, searchParams);}
 
         public Graph search(DataSet ds) {
             IndTestMultinomialLogisticRegression indTest = new IndTestMultinomialLogisticRegression(ds, searchParams[0]);
             PcStable pcs = new PcStable(indTest);
+            if(searchParams.length==2 && searchParams[1] >= 0)
+                pcs.setDepth((int) searchParams[1]);
+            pcs.setVerbose(this.verbose);
             return pcs.search();
         }
     }
 
     public static class MGMWrapper extends DataGraphSearch {
         //should be array three parameters for lambdas of each edge type
-        public MGMWrapper(double... params) {
-            super(params);
+        public MGMWrapper(boolean verbose, double... params) {
+            super(verbose, params);
         }
 
-        public MGMWrapper copy() {return new MGMWrapper(searchParams);};
+        public MGMWrapper copy() {return new MGMWrapper(verbose, searchParams);};
 
         public Graph search(DataSet ds) {
             MGM m = new MGM(ds, searchParams);
+            m.setVerbose(this.verbose);
             return m.search();
         }
     }
 
     public static class GesWrapper extends DataGraphSearch{
-        public GesWrapper(double...params){
-            super(params);
+        public GesWrapper(boolean verbose, double...params){
+            super(verbose, params);
         }
 
-        public GesWrapper copy() {return new GesWrapper(searchParams);}
+        public GesWrapper copy() {return new GesWrapper(verbose, searchParams);}
 
         public Graph search(DataSet ds){
             Fgs fg = new Fgs(MixedUtils.makeContinuousData(ds));
             fg.setPenaltyDiscount(searchParams[0]);
+            fg.setVerbose(this.verbose);
             return fg.search();
         }
     }

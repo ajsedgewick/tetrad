@@ -29,7 +29,10 @@ import edu.cmu.tetrad.graph.Graph;
  */
 public abstract class DataGraphSearch {
     public final double[] searchParams;
-    public DataGraphSearch(double... params){
+    public boolean verbose=false;
+    //public void setVerbose(boolean v) {this.verbose = v; };
+    public DataGraphSearch(boolean verbose, double... params){
+        this.verbose = verbose;
         this.searchParams = params;
     }
     public abstract DataGraphSearch copy();
