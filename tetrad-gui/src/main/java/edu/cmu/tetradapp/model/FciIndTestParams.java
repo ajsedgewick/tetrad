@@ -70,6 +70,7 @@ public class FciIndTestParams implements IndTestParams {
      */
     private int maxReachablePathLength = -1;
     private boolean gFci;
+    private int numPatternsToSave = 0;
 
     //============================CONSTRUCTORS=========================//
 
@@ -92,9 +93,9 @@ public class FciIndTestParams implements IndTestParams {
     }
 
     public void setAlpha(double alpha) {
-        if (alpha < 0.0 || alpha > 1.0) {
-            throw new IllegalArgumentException("Alpha out of range: " + alpha);
-        }
+//        if (alpha < 0.0 || alpha > 1.0) {
+//            throw new IllegalArgumentException("Alpha out of range: " + alpha);
+//        }
         this.alpha = alpha;
     }
 
@@ -190,6 +191,15 @@ public class FciIndTestParams implements IndTestParams {
 
     public void setGFci(boolean gFci) {
         this.gFci = gFci;
+    }
+
+    @Override
+    public int getNumPatternsToSave() {
+        return numPatternsToSave;
+    }
+
+    public void setNumPatternsToSave(int numPatternsToSave) {
+        this.numPatternsToSave = numPatternsToSave;
     }
 }
 

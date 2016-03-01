@@ -59,7 +59,7 @@ import java.util.List;
  *
  * @author Joseph Ramsey
  */
-public class JpcSearchEditor extends AbstractSearchEditor
+public class PcLocalSearchEditor extends AbstractSearchEditor
         implements KnowledgeEditable, LayoutEditable, DoNotScroll {
 
     private JTextArea modelStatsText;
@@ -68,11 +68,7 @@ public class JpcSearchEditor extends AbstractSearchEditor
 
     //=========================CONSTRUCTORS============================//
 
-    public JpcSearchEditor(JpcRunner runner) {
-        super(runner, "Result Pattern");
-    }
-
-    public JpcSearchEditor(JcpcRunner runner) {
+    public PcLocalSearchEditor(PcLocalRunner runner) {
         super(runner, "Result Pattern");
     }
 
@@ -743,29 +739,12 @@ public class JpcSearchEditor extends AbstractSearchEditor
             throw new NullPointerException();
         }
 
-        if (indTestParams instanceof GesIndTestParams) {
-            if (getAlgorithmRunner() instanceof IGesRunner) {
-                GesRunner gesRunner = ((GesRunner) getAlgorithmRunner());
-                GesIndTestParams params = (GesIndTestParams) indTestParams;
-                DataModel dataModel = gesRunner.getDataModel();
-                boolean discreteData = dataModel instanceof DataSet && ((DataSet) dataModel).isDiscrete();
-                return new GesIndTestParamsEditor(params, discreteData);
+        if (indTestParams instanceof FgsIndTestParams) {
+            if (getAlgorithmRunner() instanceof IFgsRunner) {
+                IFgsRunner fgsRunner = ((IFgsRunner) getAlgorithmRunner());
+                FgsIndTestParams params = (FgsIndTestParams) indTestParams;
+                return new FgsIndTestParamsEditor(params, fgsRunner.getType());
             }
-
-            if (getAlgorithmRunner() instanceof  ImagesRunner) {
-                ImagesRunner gesRunner = ((ImagesRunner) getAlgorithmRunner());
-                GesIndTestParams params = (GesIndTestParams) indTestParams;
-                DataSet dataSet = (DataSet) gesRunner.getDataModel();
-                boolean discreteData = dataSet.isDiscrete();
-                return new GesIndTestParamsEditor(params, discreteData);
-            }
-//            else if (getAlgorithmRunner() instanceof PValueImproverWrapper) {
-//                PValueImproverWrapper runner = ((PValueImproverWrapper) getAlgorithmRunner());
-//                GesIndTestParams params = (GesIndTestParams) indTestParams;
-//                boolean discreteData =
-//                        runner.getSelectedDataModel() instanceof RectangularDataSet;
-//                return new GesIndTestParamsEditor(params, discreteData);
-//            }
         }
 
         if (indTestParams instanceof LagIndTestParams) {
@@ -786,8 +765,8 @@ public class JpcSearchEditor extends AbstractSearchEditor
             return new PcIndTestParamsEditor((PcIndTestParams) indTestParams);
         }
 
-        if (indTestParams instanceof JpcIndTestParams) {
-            return new JpcIndTestParamsEditor((JpcIndTestParams) indTestParams);
+        if (indTestParams instanceof PcLocalIndTestParams) {
+            return new PcLocalIndTestParamsEditor((PcLocalIndTestParams) indTestParams);
         }
 
         return new IndTestParamsEditor(indTestParams);

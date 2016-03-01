@@ -89,8 +89,6 @@ public class TestDM {
         trueGraph.addDirectedEdge(new GraphNode("L0"), new GraphNode("X2"));
         trueGraph.addDirectedEdge(new GraphNode("L0"), new GraphNode("X3"));
 
-//        System.out.println(trueGraph);
-
         assertTrue(trueGraph.equals(foundGraph));
     }
 
@@ -133,7 +131,6 @@ public class TestDM {
         Graph foundGraph = search.search();
 
         print("Test Case 2");
-//        System.out.println(search.getDmStructure());
 
         Graph trueGraph = new EdgeListGraph();
 
@@ -166,10 +163,6 @@ public class TestDM {
 
         trueGraph.addDirectedEdge(new GraphNode("L1"), new GraphNode("X6"));
         trueGraph.addDirectedEdge(new GraphNode("L1"), new GraphNode("X7"));
-
-
-//        System.out.println(foundGraph);
-//        System.out.println(trueGraph);
 
         assertTrue(foundGraph.equals(trueGraph));
     }
@@ -230,8 +223,6 @@ public class TestDM {
         Graph foundGraph = search.search();
 
         print("Test Case 3");
-//        System.out.println(search.getDmStructure());
-
 
         Graph trueGraph = new EdgeListGraph();
 
@@ -314,8 +305,6 @@ public class TestDM {
         Graph foundGraph = search.search();
 
         print("Three Latent Fork Case");
-//        System.out.println(search.getDmStructure());
-
 
         Graph trueGraph = new EdgeListGraph();
 
@@ -377,7 +366,6 @@ public class TestDM {
         Graph foundGraph = search.search();
 
         print("Three Latent Collider Case");
-//        System.out.println(search.getDmStructure());
 
         Graph trueGraph = new EdgeListGraph();
 
@@ -443,12 +431,7 @@ public class TestDM {
         Graph foundGraph = search.search();
 
         print("Four Latent Case");
-//        System.out.println(search.getDmStructure());
-
-
         print("search.getDmStructure().latentStructToEdgeListGraph(search.getDmStructure())");
-//        System.out.println(search.getDmStructure().latentStructToEdgeListGraph(search.getDmStructure()));
-
 
         Graph trueGraph = new EdgeListGraph();
 
@@ -513,8 +496,6 @@ public class TestDM {
 
         }
 
-
-//        System.out.println(result.getDmStructure().latentStructToEdgeListGraph(result.getDmStructure()));
         print("DONE");
     }
 
@@ -665,7 +646,7 @@ public class TestDM {
 
         DMSearch search = new DMSearch();
 
-        search.setUseGES(false);
+        search.setUseFgs(false);
 
         search.setInputs(new int[]{0, 1});
         search.setOutputs(new int[]{2, 3, 4});
@@ -1220,7 +1201,7 @@ public class TestDM {
         if (useGES == false) {
 
             search.setAlphaPC(.05);
-            search.setUseGES(useGES);
+            search.setUseFgs(useGES);
 
             search.setData(data);
             search.setTrueInputs(trueInputs);

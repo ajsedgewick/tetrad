@@ -59,6 +59,7 @@ public final class PcIndTestParams implements IndTestParams {
      * @deprecated
      */
     private boolean collidersOrientedLocally = false;
+    private int numPatternsToSave = 0;
 
     //============================CONSTRUCTORS=========================//
 
@@ -81,9 +82,9 @@ public final class PcIndTestParams implements IndTestParams {
     }
 
     public void setAlpha(double alpha) {
-        if (alpha < 0.0 || alpha > 1.0) {
-            throw new IllegalArgumentException("Alpha out of range: " + alpha);
-        }
+//        if (alpha < 0.0 || alpha > 1.0) {
+//            throw new IllegalArgumentException("Alpha out of range: " + alpha);
+//        }
         this.alpha = alpha;
     }
 
@@ -114,6 +115,11 @@ public final class PcIndTestParams implements IndTestParams {
      */
     public int getDepth() {
         return this.depth;
+    }
+
+    @Override
+    public int getNumPatternsToSave() {
+        return numPatternsToSave;
     }
 
     public int getBeamWidth() {
@@ -153,6 +159,10 @@ public final class PcIndTestParams implements IndTestParams {
         }
 
         if (beamWidth == 0) beamWidth = 5;
+    }
+
+    public void setNumPatternsToSave(int numPatternsToSave) {
+        this.numPatternsToSave = numPatternsToSave;
     }
 }
 

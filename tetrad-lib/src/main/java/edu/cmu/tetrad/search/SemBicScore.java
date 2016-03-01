@@ -37,7 +37,7 @@ import java.util.List;
  *
  * @author Joseph Ramsey
  */
-public class SemBicScore implements GesScore {
+public class SemBicScore implements ISemBicScore {
 
     // The covariance matrix.
     private ICovarianceMatrix covariances;
@@ -48,7 +48,7 @@ public class SemBicScore implements GesScore {
     // The sample size of the covariance matrix.
     private int sampleSize;
 
-    // The penalty discount.
+    // The penalty penaltyDiscount.
     private double penaltyDiscount = 2.0;
 
     // True if linear dependencies should return NaN for the score, and hence be
@@ -61,10 +61,14 @@ public class SemBicScore implements GesScore {
     // True if verbose output should be sent to out.
     private boolean verbose = false;
 
+    public SemBicScore(ICovarianceMatrix covariances) {
+        this(covariances, 2.0);
+    }
+
     /**
      * Constructs the score using a covariance matrix.
      */
-    public SemBicScore(ICovarianceMatrix covariances) {
+    public SemBicScore(ICovarianceMatrix covariances, double penaltyDiscount) {
         if (covariances == null) {
             throw new NullPointerException();
         }
@@ -72,6 +76,7 @@ public class SemBicScore implements GesScore {
         this.setCovariances(covariances);
         this.variables = covariances.getVariables();
         this.sampleSize = covariances.getSampleSize();
+        this.penaltyDiscount = penaltyDiscount;
     }
 
     /**
@@ -114,8 +119,8 @@ public class SemBicScore implements GesScore {
     }
 
     @Override
-    public double localScoreDiff(int i, int[] parents, int extra) {
-        return localScore(i, append(parents, extra)) - localScore(i, parents);
+    public double localScoreDiff(int x, int y, int[] z) {
+        return localScore(y, append(z, x)) - localScore(y, z);
     }
 
     int[] append(int[] parents, int extra) {
@@ -223,7 +228,6 @@ public class SemBicScore implements GesScore {
     public void setVerbose(boolean verbose) {
         this.verbose = verbose;
     }
-
     @Override
     public List<Node> getVariables() {
         return variables;
@@ -232,6 +236,16 @@ public class SemBicScore implements GesScore {
     @Override
     public boolean isDiscrete() {
         return false;
+    }
+
+    @Override
+    public double getParameter1() {
+        return penaltyDiscount;
+    }
+
+    @Override
+    public void setParameter1(double alpha) {
+        this.penaltyDiscount = alpha;
     }
 
     // Calculates the BIC score.
@@ -277,6 +291,10 @@ public class SemBicScore implements GesScore {
         this.covariances = covariances;
     }
 
+    public void setVariables(List<Node> variables) {
+        covariances.setVariables(variables);
+        this.variables = variables;
+    }
 }
 
 

@@ -32,7 +32,7 @@ import java.io.ObjectInputStream;
  *
  * @author Joseph Ramsey
  */
-public final class JpcIndTestParams implements IndTestParams {
+public final class PcLocalIndTestParams implements IndTestParams {
     static final long serialVersionUID = 23L;
 
     /**
@@ -55,6 +55,8 @@ public final class JpcIndTestParams implements IndTestParams {
 
     private int maxDescendantPath = 30;
 
+    private int numPatternsToSave = 0;
+
     /**
      * @serial
      * @deprecated
@@ -63,7 +65,7 @@ public final class JpcIndTestParams implements IndTestParams {
 
     //============================CONSTRUCTORS=========================//
 
-    public JpcIndTestParams() {
+    public PcLocalIndTestParams() {
     }
 
     /**
@@ -71,8 +73,8 @@ public final class JpcIndTestParams implements IndTestParams {
      *
      * @see TetradSerializableUtils
      */
-    public static JpcIndTestParams serializableInstance() {
-        return new JpcIndTestParams();
+    public static PcLocalIndTestParams serializableInstance() {
+        return new PcLocalIndTestParams();
     }
 
     //============================PUBLIC METHODS=======================//
@@ -82,9 +84,6 @@ public final class JpcIndTestParams implements IndTestParams {
     }
 
     public void setAlpha(double alpha) {
-        if (alpha < 0.0 || alpha > 1.0) {
-            throw new IllegalArgumentException("Alpha out of range: " + alpha);
-        }
         this.alpha = alpha;
     }
 
@@ -172,6 +171,15 @@ public final class JpcIndTestParams implements IndTestParams {
 
     public void setMaxDescendantPath(int maxDescendantPath) {
         this.maxDescendantPath = maxDescendantPath;
+    }
+
+    @Override
+    public int getNumPatternsToSave() {
+        return numPatternsToSave;
+    }
+
+    public void setNumPatternsToSave(int numPatternsToSave) {
+        this.numPatternsToSave = numPatternsToSave;
     }
 }
 

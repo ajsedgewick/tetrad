@@ -66,12 +66,13 @@ public class SearchWrappers {
         }
     }
 
-    public static class GesWrapper extends DataGraphSearch{
-        public GesWrapper(boolean verbose, double...params){
+
+    public static class FgsWrapper extends DataGraphSearch{
+        public FgsWrapper(boolean verbose, double...params){
             super(verbose, params);
         }
 
-        public GesWrapper copy() {return new GesWrapper(verbose, searchParams);}
+        public FgsWrapper copy() {return new FgsWrapper(verbose, searchParams);}
 
         public Graph search(DataSet ds){
             Fgs fg = new Fgs(MixedUtils.makeContinuousData(ds));

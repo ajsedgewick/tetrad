@@ -30,38 +30,47 @@ import edu.cmu.tetrad.util.TetradSerializableUtils;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.util.ArrayList;
 import java.util.List;
 
+
 /**
- * Stores the parameters needed for the GES search and wizard.
+ * Stores the parameters needed for the PC search and wizard.
  *
- * @author Ricardo Silva
+ * @author Raul Salinas
+ * @author Joseph Ramsey
  */
-public final class GesParams implements MeekSearchParams {
+public final class PcLocalSearchParams implements MeekSearchParams {
     static final long serialVersionUID = 23L;
 
     /**
-     * @serial Can't be null.
+     * @serial Cannot be null.
      */
     private IKnowledge knowledge = new Knowledge2();
 
     /**
-     * @serial Can't be null.
-     */
-    private GesIndTestParams indTestParams;
-
-    /**
-     * @serial Can be null.
+     * @serial Cannot be null. (?)
      */
     private List<String> varNames;
 
     /**
-     * @serial Can be null.
+     * @serial
+     * @deprecated
      */
-    private IndTestType testType;
+    private IndTestParams indTestParams;
 
     /**
-     * @serial Can be null.
+     * @serial Cannot be null.
+     */
+    private PcLocalIndTestParams indTestParams2 = new PcLocalIndTestParams();
+
+    /**
+     * @serial Cannot be null.
+     */
+    private IndTestType testType = IndTestType.DEFAULT;
+
+    /**
+     * @serial May be null.
      */
     private Graph sourceGraph;
 
@@ -70,15 +79,14 @@ public final class GesParams implements MeekSearchParams {
      * for large graphs (but also useful for large graphs).
      */
     private boolean aggressivelyPreventCycles = false;
-    private double complexityPenalty;
 
-    //============================CONSTRUCTORS============================//
+    //=============================CONSTUCTORS===========================//
 
     /**
      * Constructs a new parameter object. Must have a blank constructor.
      */
-    public GesParams() {
-        this.indTestParams = new GesIndTestParams(this);
+    public PcLocalSearchParams() {
+        this.varNames = new ArrayList<String>();
     }
 
     /**
@@ -86,11 +94,12 @@ public final class GesParams implements MeekSearchParams {
      *
      * @see TetradSerializableUtils
      */
-    public static GesParams serializableInstance() {
-        return new GesParams();
+    public static PcLocalSearchParams serializableInstance() {
+        return new PcLocalSearchParams();
     }
 
-    //============================PUBLIC METHODS==========================//
+    //=============================PUBLIC METHODS========================//
+
 
     public boolean isAggressivelyPreventCycles() {
         return this.aggressivelyPreventCycles;
@@ -100,16 +109,30 @@ public final class GesParams implements MeekSearchParams {
         this.aggressivelyPreventCycles = aggressivelyPreventCycles;
     }
 
-    public IndTestParams getIndTestParams() {
-        return this.indTestParams;
+    /**
+     * Sets a new Knowledge2 for the algorithm.
+     */
+    public void setKnowledge(IKnowledge knowledge) {
+        if (knowledge == null) {
+            throw new NullPointerException("Cannot set a null knowledge.");
+        }
+
+        this.knowledge = knowledge.copy();
     }
 
-    public void setIndTestParams2(IndTestParams indTestParams) {
-        if (!(indTestParams instanceof GesIndTestParams)) {
-            throw new IllegalArgumentException(
-                    "Illegal IndTestParams " + "in GesIndTestParams");
+    public IKnowledge getKnowledge() {
+        return this.knowledge.copy();
+    }
+
+    public IndTestParams getIndTestParams() {
+        return this.indTestParams2;
+    }
+
+    public void setIndTestParams(IndTestParams indTestParams2) {
+        if (indTestParams2 == null) {
+            throw new NullPointerException();
         }
-        this.indTestParams = (GesIndTestParams) indTestParams;
+        this.indTestParams2 = (PcLocalIndTestParams) indTestParams2;
     }
 
     public List<String> getVarNames() {
@@ -117,6 +140,10 @@ public final class GesParams implements MeekSearchParams {
     }
 
     public void setVarNames(List<String> varNames) {
+        if (varNames == null) {
+            throw new NullPointerException();
+        }
+
         this.varNames = varNames;
     }
 
@@ -129,6 +156,10 @@ public final class GesParams implements MeekSearchParams {
     }
 
     public void setIndTestType(IndTestType testType) {
+        if (testType == null) {
+            throw new NullPointerException();
+        }
+
         this.testType = testType;
     }
 
@@ -141,42 +172,12 @@ public final class GesParams implements MeekSearchParams {
         throw new UnsupportedOperationException();
     }
 
-    //  Wrapping GesIndTestParams...
+    public String toString() {
+        StringBuilder buf = new StringBuilder();
+        buf.append("BasicSearchParams:");
+        buf.append("\n\tindTestParams = ").append(indTestParams2);
 
-    public double getSamplePrior() {
-        return indTestParams.getSamplePrior();
-    }
-
-    public void setCellPrior(double cellPrior) {
-        indTestParams.setSamplePrior(cellPrior);
-    }
-
-    public double getStructurePrior() {
-        return indTestParams.getStructurePrior();
-    }
-
-    public void setStructurePrior(double structurePrior) {
-        indTestParams.setStructurePrior(structurePrior);
-    }
-
-    public double getComplexityPenalty() {
-        return indTestParams.getPenaltyDiscount();
-    }
-
-    public void setComplexityPenalty(double complexityPenalty) {
-        indTestParams.setPenaltyDiscount(complexityPenalty);
-    }
-
-    public IKnowledge getKnowledge() {
-        return knowledge.copy();
-    }
-
-    public void setKnowledge(IKnowledge knowledge) {
-        if (knowledge == null) {
-            throw new NullPointerException("Cannot set a null knowledge.");
-        }
-
-        this.knowledge = knowledge.copy();
+        return buf.toString();
     }
 
     /**
@@ -200,13 +201,21 @@ public final class GesParams implements MeekSearchParams {
             throw new NullPointerException();
         }
 
-        if (indTestParams == null) {
+        if (varNames == null) {
+            throw new NullPointerException();
+        }
+
+        if (indTestParams2 == null) {
+            indTestParams2 = new PcLocalIndTestParams();
+//            throw new NullPointerException();
+        }
+
+        if (testType == null) {
             throw new NullPointerException();
         }
     }
+
+
 }
-
-
-
 
 
