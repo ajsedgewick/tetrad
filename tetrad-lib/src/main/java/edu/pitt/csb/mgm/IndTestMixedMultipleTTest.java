@@ -99,7 +99,7 @@ public class IndTestMixedMultipleTTest implements IndependenceTest {
      * getVariableNames().
      */
     public boolean isIndependent(Node x, Node y, List<Node> z) {
-        if (x instanceof DiscreteVariable) {
+        if (x instanceof DiscreteVariable && y instanceof DiscreteVariable) {
             flipLast = false;
             return isIndependentMultinomialLogisticRegression(x, y, z);
         } else if (x instanceof DiscreteVariable) {
@@ -186,7 +186,7 @@ public class IndTestMixedMultipleTTest implements IndependenceTest {
         }
 
         for (Node node : z) {
-            if (!variablesPerNode.containsKey(x)) {
+            if (!variablesPerNode.containsKey(node)) {
                 throw new IllegalArgumentException("Unrecogized node: " + node);
             }
         }
@@ -360,7 +360,7 @@ public class IndTestMixedMultipleTTest implements IndependenceTest {
         }
 
         for (Node node : z) {
-            if (!variablesPerNode.containsKey(x)) {
+            if (!variablesPerNode.containsKey(node)) {
                 throw new IllegalArgumentException("Unrecogized node: " + node);
             }
         }
