@@ -28,6 +28,7 @@ import cern.colt.matrix.linalg.Algebra;
 import edu.cmu.tetrad.calculator.expression.Expression;
 import edu.cmu.tetrad.data.*;
 import edu.cmu.tetrad.graph.*;
+import edu.cmu.tetrad.search.IndependenceTest;
 import edu.cmu.tetrad.sem.GeneralizedSemIm;
 import edu.cmu.tetrad.sem.GeneralizedSemPm;
 import edu.cmu.tetrad.sem.TemplateExpander;
@@ -39,6 +40,7 @@ import edu.cmu.tetrad.util.dist.Discrete;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.text.ParseException;
 import java.util.*;
 
@@ -917,9 +919,59 @@ public class MixedUtils {
         return graphToMatrix(graph, 1, 1);
     }
 
-/*    public static DataSet GenerateMixedDataSimple(Graph g, HashMap<String, Integer> nd){
+    /**
+     * Returns independence tests by name located in edu.cmu.tetrad.search and edu.pitt.csb.mgm
+     * also supports shorthand for LRT ("lrt) and t-tests ("tlin" for prefer linear (fastest) or "tlog" for prefer logistic)
+     * @param name
+     * @return
+     */
+    public static IndependenceTest IndTestFromString(String name, DataSet data, double alpha) {
 
-    }*/
+        IndependenceTest test = null;
+
+        if (name.equals("lrt")) {
+            test = new IndTestMixedLrt(data, alpha);
+            //test = new IndTestMultinomialLogisticRegression(data, alpha);
+        } else if (name.equals("tlin")) {
+            test = new IndTestMixedMultipleTTest(data, alpha);
+            ((IndTestMixedMultipleTTest)test).setPreferLinear(true);
+            //test = new IndTestMultinomialLogisticRegressionWald(data, alpha, true);
+        } else if (name.equals("tlog")){
+            test = new IndTestMixedMultipleTTest(data, alpha);
+            ((IndTestMixedMultipleTTest)test).setPreferLinear(false);
+        //test = new IndTestMultinomialLogisticRegressionWald(data, alpha, false);
+        } else {
+
+            // This should allow the user to call any independence test found in tetrad.search or mgm
+            Class cl = null;
+            try {
+                cl = Class.forName("edu.cmu.tetrad.search." + name);
+            } catch (ClassNotFoundException e) {
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            try {
+                cl = Class.forName("edu.pitt.csb.mgm." + name);
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("-test argument not recognized");
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            try {
+                Constructor con = cl.getConstructor(DataSet.class, double.class);
+                test = (IndependenceTest) con.newInstance(data, alpha);
+            } catch (NoSuchMethodException e) {
+                System.err.println("Independence Test: " + name + " not found");
+            } catch (Exception e) {
+                System.err.println("Independence Test: " + name + " found but not constructed");
+                e.printStackTrace();
+            }
+        }
+
+        return test;
+    }
 
     //main for testing
     public static void main(String[] args){

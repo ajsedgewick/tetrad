@@ -69,7 +69,7 @@ public final class DiscreteVariable extends AbstractVariable
      * restarts, this field must be transient.
      */
     //private List<LinkedList<String>> STORED_CATEGORY_LISTS = null;
-    private List<LinkedList<String>> STORED_CATEGORY_LISTS = null;
+    private static List<LinkedList<String>> STORED_CATEGORY_LISTS = null;
 
     /**
      * The list of categories for the variable. Since the order must be
@@ -535,8 +535,8 @@ public final class DiscreteVariable extends AbstractVariable
         return this.pcs;
     }
 
-    //private static synchronized List<String> getStoredCategoryList(
-    private List<String> getStoredCategoryList(
+    private static synchronized List<String> getStoredCategoryList(
+    //private List<String> getStoredCategoryList(
             List<String> categoryList) {
         if (categoryList == null) {
             throw new NullPointerException();

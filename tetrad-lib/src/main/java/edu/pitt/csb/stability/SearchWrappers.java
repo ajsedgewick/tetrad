@@ -35,20 +35,28 @@ import edu.pitt.csb.mgm.MixedUtils;
  */
 public class SearchWrappers {
     public static class PcStableWrapper extends DataGraphSearch {
-        private IndependenceTest test = null;
+        private String testName = null;
 
         //should be one param for the alpha level of the independance test
         public PcStableWrapper(boolean verbose, double... params) {
             super(verbose, params);
         }
 
-        public PcStableWrapper copy(){return new PcStableWrapper(verbose, searchParams);}
+        public PcStableWrapper copy(){
+            PcStableWrapper w = new PcStableWrapper(verbose, searchParams);
+            if(testName != null)
+                w.setTestName(testName);
+            return w;
+        }
 
-        public void setIndependenceTest(IndependenceTest t){this.test = t;}
+        public void setTestName(String t){this.testName = t;}
 
         public Graph search(DataSet ds) {
-            if(test == null)
+            IndependenceTest test;
+            if(testName == null)
                 test = new IndTestMixedLrt(ds, searchParams[0]);
+            else
+                test = MixedUtils.IndTestFromString(testName, ds, searchParams[0]);
                 //test = new IndTestMultinomialLogisticRegression(ds, searchParams[0]);
             PcStable pcs = new PcStable(test);
             if(searchParams.length==2 && searchParams[1] >= 0)

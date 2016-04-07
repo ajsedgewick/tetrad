@@ -867,7 +867,8 @@ public class StabilitySearch {
 
     //some tests...
     public static void main(String[] args){
-        listTests();
+        //tests1();
+        //listTests();
         /*
         String a = "1";
         String b = Integer.toString(1);
