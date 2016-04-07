@@ -369,7 +369,10 @@ public class MeekRules implements ImpliedOrientation {
         graph.addEdge(after);
 
         oriented.add(after);
-        directStack.addLast(c);
+
+        if (!directStack.contains(c)) {
+            directStack.addFirst(c);
+        }
     }
 
     private static boolean isUnshieldedNoncollider(Node a, Node b, Node c,
@@ -423,7 +426,9 @@ public class MeekRules implements ImpliedOrientation {
         boolean didit = false;
 
         for (Node x : parentsToUndirect) {
-            if (!oriented.contains(graph.getEdge(x, y))) {
+            boolean mustOrient = knowledge.isRequired(x.getName(), y.getName()) ||
+                    knowledge.isForbidden(y.getName(), x.getName());
+            if (!oriented.contains(graph.getEdge(x, y)) && !mustOrient) {
                 graph.removeEdge(x, y);
                 graph.addUndirectedEdge(x, y);
                 visited.add(x);
@@ -447,7 +452,6 @@ public class MeekRules implements ImpliedOrientation {
             TetradLogger.getInstance().log("impliedOrientations", message);
         }
     }
-
 }
 
 

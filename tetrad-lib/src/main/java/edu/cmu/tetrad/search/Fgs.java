@@ -96,7 +96,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
     /**
      * The score for discrete searches.
      */
-    private FgsScore fgsScore;
+    private Score fgsScore;
 
     /**
      * The logger for this class. The config needs to be set.
@@ -201,7 +201,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
         }
     }
 
-    public Fgs(FgsScore fgsScore) {
+    public Fgs(Score fgsScore) {
         if (fgsScore == null) throw new NullPointerException();
         setFgsScore(fgsScore);
         this.graph = new EdgeListGraphSingleConnections(getVariables());
@@ -210,14 +210,14 @@ public final class Fgs implements GraphSearch, GraphScorer {
     //==========================PUBLIC METHODS==========================//
 
     /**
-     * Set to true if it is assumed that all path pairs with one length 1 path do not cancel.
+     * Set to true if it is assumed that all path pairs with one length 1 path do not cancelAll.
      */
     public void setFaithfulnessAssumed(boolean faithfulness) {
         this.faithfulnessAssumed = faithfulness;
     }
 
     /**
-     * @return true if it is assumed that all path pairs with one length 1 path do not cancel.
+     * @return true if it is assumed that all path pairs with one length 1 path do not cancelAll.
      */
     public boolean isFaithfulnessAssumed() {
         return this.faithfulnessAssumed;
@@ -230,6 +230,9 @@ public final class Fgs implements GraphSearch, GraphScorer {
      * @return the resulting Pattern.
      */
     public Graph search() {
+        long start = System.currentTimeMillis();
+        score = 0.0;
+
         topGraphs.clear();
 
         lookupArrows = new ConcurrentHashMap<>();
@@ -238,8 +241,6 @@ public final class Fgs implements GraphSearch, GraphScorer {
         if (adjacencies != null) {
             adjacencies = GraphUtils.replaceNodes(adjacencies, nodes);
         }
-
-        addRequiredEdges(graph);
 
         if (initialGraph != null) {
             graph.clear();
@@ -280,9 +281,6 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 }
             }
         }
-
-        long start = System.currentTimeMillis();
-        score = 0.0;
 
         // Do backward search.
         bes();
@@ -515,7 +513,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
     //===========================PRIVATE METHODS========================//
 
     //Sets the discrete scoring function to use.
-    private void setFgsScore(FgsScore fgsScore) {
+    private void setFgsScore(Score fgsScore) {
         this.fgsScore = fgsScore;
 
         this.variables = new ArrayList<>();
@@ -606,12 +604,12 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 } else {
                     int mid = (to - from) / 2;
 
-                    List<InitializeFromEmptyGraphTask> tasks = new ArrayList<>();
+                    InitializeFromEmptyGraphTask left = new InitializeFromEmptyGraphTask(chunk, from, from + mid);
+                    InitializeFromEmptyGraphTask right = new InitializeFromEmptyGraphTask(chunk, from + mid, to);
 
-                    tasks.add(new InitializeFromEmptyGraphTask(chunk, from, from + mid));
-                    tasks.add(new InitializeFromEmptyGraphTask(chunk, from + mid, to));
-
-                    invokeAll(tasks);
+                    left.fork();
+                    right.compute();
+                    left.join();
 
                     return true;
                 }
@@ -702,12 +700,12 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 } else {
                     int mid = (to - from) / 2;
 
-                    List<InitializeFromExistingGraphTask> tasks = new ArrayList<>();
+                    InitializeFromExistingGraphTask left = new InitializeFromExistingGraphTask(chunk, from, from + mid);
+                    InitializeFromExistingGraphTask right = new InitializeFromExistingGraphTask(chunk, from + mid, to);
 
-                    tasks.add(new InitializeFromExistingGraphTask(chunk, from, from + mid));
-                    tasks.add(new InitializeFromExistingGraphTask(chunk, from + mid, to));
-
-                    invokeAll(tasks);
+                    left.fork();
+                    right.compute();
+                    left.join();
 
                     return true;
                 }
@@ -844,8 +842,6 @@ public final class Fgs implements GraphSearch, GraphScorer {
             storeGraph();
             reevaluateBackward(toProcess);
         }
-
-        meekOrientRestricted(getVariables(), getKnowledge());
     }
 
     private Set<Node> getCommonAdjacents(Node x, Node y) {
@@ -948,19 +944,19 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 } else {
                     int mid = (to - from) / 2;
 
-                    List<AdjTask> tasks = new ArrayList<>();
+                    AdjTask left = new AdjTask(chunk, nodes, from, from + mid);
+                    AdjTask right = new AdjTask(chunk, nodes, from + mid, to);
 
-                    tasks.add(new AdjTask(chunk, nodes, from, from + mid));
-                    tasks.add(new AdjTask(chunk, nodes, from + mid, to));
-
-                    invokeAll(tasks);
+                    left.fork();
+                    right.compute();
+                    left.join();
 
                     return true;
                 }
             }
         }
 
-        final AdjTask task = new AdjTask(minChunk, new ArrayList<>(nodes), 0, nodes.size());
+        final AdjTask task = new AdjTask(10, new ArrayList<>(nodes), 0, nodes.size());
 
         pool.invoke(task);
 
@@ -1086,12 +1082,12 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 } else {
                     int mid = (to - from) / 2;
 
-                    List<BackwardTask> tasks = new ArrayList<>();
+                    BackwardTask left = new BackwardTask(r, adj, chunk, from, from + mid, hashIndices);
+                    BackwardTask right = new BackwardTask(r, adj, chunk, from + mid, to, hashIndices);
 
-                    tasks.add(new BackwardTask(r, adj, chunk, from, from + mid, hashIndices));
-                    tasks.add(new BackwardTask(r, adj, chunk, from + mid, to, hashIndices));
-
-                    invokeAll(tasks);
+                    left.fork();
+                    right.compute();
+                    left.join();
 
                     return true;
                 }
@@ -1101,7 +1097,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
         for (Node r : toProcess) {
             this.neighbors.put(r, getNeighbors(r));
             List<Node> adjacentNodes = graph.getAdjacentNodes(r);
-            pool.invoke(new BackwardTask(r, adjacentNodes, minChunk, 0, adjacentNodes.size(), hashIndices));
+            pool.invoke(new BackwardTask(r, adjacentNodes, 10, 0, adjacentNodes.size(), hashIndices));
         }
     }
 
@@ -1610,14 +1606,10 @@ public final class Fgs implements GraphSearch, GraphScorer {
         return null;
     }
 
-    // Runs Meek rules on just the changed adj.
-    private Set<Node> reorientNode(List<Node> nodes) {
-        addRequiredEdges(graph);
-        return meekOrientRestricted(nodes, getKnowledge());
-    }
 
     // Runs Meek rules on just the changed adj.
     private Set<Node> meekOrientRestricted(List<Node> nodes, IKnowledge knowledge) {
+        addRequiredEdges(graph);
         MeekRules rules = new MeekRules();
         rules.setKnowledge(knowledge);
         rules.setUndirectUnforcedEdges(true);

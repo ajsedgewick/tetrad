@@ -26,10 +26,7 @@ import edu.cmu.tetrad.graph.*;
 import edu.cmu.tetrad.search.*;
 import edu.cmu.tetrad.util.TetradSerializableUtils;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Extends AbstractAlgorithmRunner to produce a wrapper for the PC algorithm.
@@ -40,7 +37,7 @@ public class PcMaxRunner extends AbstractAlgorithmRunner
         implements IndTestProducer, GraphSource {
     static final long serialVersionUID = 23L;
     private Graph initialGraph = null;
-//    private Pc pc = null;
+//    private PC pc = null;
 
     Set<Edge> pcAdjacent;
     Set<Edge> pcNonadjacent;
@@ -127,13 +124,18 @@ public class PcMaxRunner extends AbstractAlgorithmRunner
         return rules;
     }
 
+    @Override
+    public String getAlgorithmName() {
+        return "PC-Max";
+    }
+
     //===================PUBLIC METHODS OVERRIDING ABSTRACT================//
 
     public void execute() {
         IKnowledge knowledge = getParams().getKnowledge();
         int depth = getParams().getIndTestParams().getDepth();
 
-//        Pc pc = new Pc(getIndependenceTest());
+//        PC pc = new PC(getIndependenceTest());
         PcMax pc = new PcMax(getIndependenceTest());
         pc.setKnowledge(knowledge);
         pc.setAggressivelyPreventCycles(isAggressivelyPreventCycles());
@@ -202,6 +204,13 @@ public class PcMaxRunner extends AbstractAlgorithmRunner
 
     public boolean supportsKnowledge() {
         return true;
+    }
+
+    @Override
+    public Map<String, String> getParamSettings() {
+        super.getParamSettings();
+        paramSettings.put("Test", getIndependenceTest().toString());
+        return paramSettings;
     }
 
     //========================== Private Methods ===============================//

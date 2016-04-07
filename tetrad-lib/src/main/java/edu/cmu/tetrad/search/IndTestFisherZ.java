@@ -26,6 +26,7 @@ import edu.cmu.tetrad.graph.Node;
 import edu.cmu.tetrad.util.*;
 
 import java.io.PrintStream;
+import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -113,7 +114,7 @@ public final class IndTestFisherZ implements IndependenceTest {
     }
 
     /**
-     * Constructs a new Fisher Z independence test with the listed arguments.
+     * Constructs a new Fisher Z independence test with  the listed arguments.
      *
      * @param data      A 2D continuous data set with no missing values.
      * @param variables A list of variables, a subset of the variables of <code>data</code>.
@@ -223,8 +224,15 @@ public final class IndTestFisherZ implements IndependenceTest {
     }
 
     private double partialCorrelation(Node x, Node y, List<Node> z) {
-        TetradMatrix submatrix = DataUtils.subMatrix(covMatrix, indexMap, x, y, z);
+        int[] indices = new int[z.size() + 2];
+        indices[0] = indexMap.get(x);
+        indices[1] = indexMap.get(y);
+        for (int i = 0; i < z.size(); i++) indices[i + 2] = indexMap.get(z.get(i));
+        TetradMatrix submatrix = covMatrix.getSubmatrix(indices).getMatrix();
+//        TetradMatrix submatrix = DataUtils.subMatrix(covMatrix, indexMap, x, y, z);
         return StatUtils.partialCorrelation(submatrix);
+
+
     }
 
     public boolean isIndependent(Node x, Node y, Node... z) {
@@ -347,7 +355,7 @@ public final class IndTestFisherZ implements IndependenceTest {
      * @return a string representation of this test.
      */
     public String toString() {
-        return "Fisher's Z, alpha = " + nf.format(getAlpha());
+        return "Fisher Z, alpha = " + new DecimalFormat("0.0E0").format(getAlpha());
     }
 
     public void setPValueLogger(PrintStream pValueLogger) {

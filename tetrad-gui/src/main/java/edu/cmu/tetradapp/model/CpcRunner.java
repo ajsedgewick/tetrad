@@ -26,10 +26,7 @@ import edu.cmu.tetrad.graph.*;
 import edu.cmu.tetrad.search.*;
 import edu.cmu.tetrad.util.TetradSerializableUtils;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Extends AbstractAlgorithmRunner to produce a wrapper for the PC algorithm.
@@ -40,7 +37,7 @@ public class CpcRunner extends AbstractAlgorithmRunner
         implements IndTestProducer, GraphSource {
     static final long serialVersionUID = 23L;
     private Graph trueGraph;
-//    private Cpc cpc = null;
+//    private CPC cpc = null;
 
     Set<Edge> pcAdjacent;
     Set<Edge> pcNonadjacent;
@@ -260,6 +257,18 @@ public class CpcRunner extends AbstractAlgorithmRunner
         return meekRules;
     }
 
+    @Override
+    public String getAlgorithmName() {
+        return "CPC";
+    }
+
+    @Override
+    public Map<String, String> getParamSettings() {
+        super.getParamSettings();
+        paramSettings.put("Test", getIndependenceTest().toString());
+        return paramSettings;
+    }
+
     //========================== Private Methods ===============================//
 
     private boolean isAggressivelyPreventCycles() {
@@ -276,7 +285,7 @@ public class CpcRunner extends AbstractAlgorithmRunner
         pcNodes = getGraph().getNodes();
     }
 
-//    public Cpc getCpc() { return cpc; }
+//    public CPC getCpc() { return cpc; }
 }
 
 

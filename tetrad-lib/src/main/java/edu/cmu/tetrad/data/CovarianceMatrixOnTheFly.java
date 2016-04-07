@@ -168,18 +168,28 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
                     for (int i = from; i < to; i++) {
                         double d = 0.0D;
 
+                        int count = 0;
+
                         double[] v1 = vectors[i];
 
                         for (int k = 0; k < sampleSize; ++k) {
+                            if (Double.isNaN(v1[k])) {
+                                continue;
+                            }
+
                             d += v1[k] * v1[k];
+                            count++;
                         }
 
                         double v = d;
-                        v /= (sampleSize - 1);
+//                        v /= (sampleSize - 1);
+                        v /= (count - 1);
 
                         variances[i] = v;
 
-                        if (v == 0) System.out.println("Zero variance! " + variables.get(i));
+                        if (v == 0) {
+                            System.out.println("Zero variance! " + variables.get(i));
+                        }
                     }
 
                     return true;
@@ -191,7 +201,8 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
                     List<VarianceTask> tasks = new ArrayList<>();
 
                     for (int i = 0; i < numIntervals; i++) {
-                        tasks.add(new VarianceTask(chunk, from + i * step, Math.min(from + (i + 1) * step, to)));
+                        VarianceTask task = new VarianceTask(chunk, from + i * step, Math.min(from + (i + 1) * step, to));
+                        tasks.add(task);
                     }
 
                     invokeAll(tasks);
@@ -206,7 +217,9 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
         int minChunk = 100;
         final int chunk = _chunk < minChunk ? minChunk : _chunk;
 
-        ForkJoinPoolInstance.getInstance().getPool().invoke(new VarianceTask(chunk, 0, variables.size()));
+        VarianceTask task = new VarianceTask(chunk, 0, variables.size());
+        ForkJoinPoolInstance.getInstance().getPool().invoke(task);
+
 
 //        System.out.println("Done with variances.");
 
@@ -312,7 +325,23 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
      * given order.
      */
     public final ICovarianceMatrix getSubmatrix(int[] indices) {
-        throw new UnsupportedOperationException();
+        List<Node> submatrixVars = new LinkedList<>();
+
+        for (int indice : indices) {
+            submatrixVars.add(variables.get(indice));
+        }
+
+        TetradMatrix cov = new TetradMatrix(indices.length, indices.length);
+
+        for (int i = 0; i < indices.length; i++) {
+            for (int j = i; j < indices.length; j++) {
+                double d = getValue(indices[i], indices[j]);
+                cov.set(i, j, d);
+                cov.set(j, i, d);
+            }
+        }
+
+        return new CovarianceMatrix(submatrixVars, cov, getSampleSize());
     }
 
     public final ICovarianceMatrix getSubmatrix(List<String> submatrixVarNames) {
@@ -339,13 +368,19 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
 
         double[] v1 = vectors[i];
         double[] v2 = vectors[j];
+        int count = 0;
 
-        for (int k = 0; k < sampleSize; ++k) {
+        for (int k = 0; k < sampleSize; k++) {
+            if (Double.isNaN(v1[k])) continue;
+            if (Double.isNaN(v2[k])) continue;
+
             d += v1[k] * v2[k];
+            count++;
         }
 
         double v = d;
-        v /= (sampleSize - 1);
+//        v /= (sampleSize - 1);
+        v /= (count - 1);
         return v;
     }
 

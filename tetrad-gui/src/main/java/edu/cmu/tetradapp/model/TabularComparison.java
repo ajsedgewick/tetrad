@@ -25,14 +25,15 @@ import edu.cmu.tetrad.data.DataSet;
 import edu.cmu.tetrad.graph.*;
 import edu.cmu.tetrad.search.SearchGraphUtils;
 import edu.cmu.tetrad.session.SessionModel;
+import edu.cmu.tetrad.session.SimulationParamsSource;
 import edu.cmu.tetrad.util.TetradLogger;
 import edu.cmu.tetrad.util.TetradSerializableUtils;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.prefs.Preferences;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.util.*;
 
 
 /**
@@ -42,7 +43,7 @@ import java.util.prefs.Preferences;
  * @author Joseph Ramsey
  * @author Erin Korber (added remove latents functionality July 2004)
  */
-public final class TabularComparison implements SessionModel {
+public final class TabularComparison implements SessionModel, SimulationParamsSource {
     static final long serialVersionUID = 23L;
 
     /**
@@ -58,7 +59,7 @@ public final class TabularComparison implements SessionModel {
     /**
      * The target workbench.
      *
-     * @serial Cannot be null.
+     * @serial
      */
     private Graph targetGraph;
 
@@ -73,119 +74,12 @@ public final class TabularComparison implements SessionModel {
      * The true DAG, if available. (May be null.)
      */
     private Graph trueGraph;
-
-    /**
-     * @serial
-     * @deprecated
-     */
-    private int numMissingEdges;
-
-    /**
-     * @serial
-     * @deprecated
-     */
-    private int numCorrectEdges;
-
-    /**
-     * @serial
-     * @deprecated
-     */
-    private int commissionErrors;
-
-    /**
-     * The number of correct edges the last time they were counted.
-     *
-     * @serial Range greater than or equal to 0.
-     */
-    private int adjCorrect;
-
-    /**
-     * The number of errors of commission that last time they were counted.
-     *
-     * @serial Range greater than or equal to 0.
-     */
-    private int adjFp;
-
-    /**
-     * The number of errors of omission the last time they were counted.
-     *
-     * @serial Range greater than or equal to 0.
-     */
-    private int adjFn;
-
-    /**
-     * The number of correct edges the last time they were counted.
-     *
-     * @serial Range greater than or equal to 0.
-     */
-    private int arrowptCorrect;
-
-    /**
-     * The number of errors of commission that last time they were counted.
-     *
-     * @serial Range greater than or equal to 0.
-     */
-    private int arrowptFp;
-
-    /**
-     * The number of errors of omission the last time they were counted.
-     *
-     * @serial Range greater than or equal to 0.
-     */
-    private int arrowptFn;
-
-    private int twoCycleFn;
-    private int twoCycleFp;
-    private int twoCycleCorrect;
-
-    /**
-     * @serial
-     * @deprecated
-     */
-    private int arrowptAfp;
-
-    /**
-     * @serial
-     * @deprecated
-     */
-    private int arrowptAfn;
-
-    /**
-     * The list of edges that were added to the target graph. These are
-     * new adjacencies.
-     */
-    private List<Edge> edgesAdded;
-
-    /**
-     * The list of edges that were removed from the reference graphs. These
-     * are missing adjacencies.
-     */
-    private List<Edge> edgesRemoved;
-
-    /**
-     * The list of edges that were reoriented from the reference to the
-     * target graph, as they were in the reference graph. This list
-     * coordinates with <code>edgesReorientedTo</code>, in that
-     * the i'th element of <code>edgesReorientedFrom</code> and the ith
-     * element of <code>edgesReorientedTo</code> represent the same
-     * adjacency.
-     */
-    private List<Edge> edgesReorientedFrom;
-
-    /**
-     * The list of edges that were reoriented from the reference to the
-     * target graph, as they are in the target graph. This list
-     * coordinates with <code>edgesReorientedFrom</code>, in that
-     * the i'th element of <code>edgesReorientedFrom</code> and the ith
-     * element of <code>edgesReorientedTo</code> represent the same
-     * adjacency.
-     */
-    private List<Edge> edgesReorientedTo;
+    private Map<String, String> allParamSettings;
 
     //=============================CONSTRUCTORS==========================//
 
     /**
-     * Compares the results of a Pc to a reference workbench by counting errors
+     * Compares the results of a PC to a reference workbench by counting errors
      * of omission and commission. The counts can be retrieved using the methods
      * <code>countOmissionErrors</code> and <code>countCommissionErrors</code>.
      */
@@ -245,38 +139,8 @@ public final class TabularComparison implements SessionModel {
             alteredRefGraph = removeLatent(this.referenceGraph);
         }
 
-        GraphUtils.GraphComparison comparison = SearchGraphUtils.
-                getGraphComparison2(targetGraph, alteredRefGraph);
-
-        this.adjFn = comparison.getAdjFn();
-        this.adjFp = comparison.getAdjFp();
-        this.adjCorrect = comparison.getAdjCorrect();
-        this.arrowptFn = comparison.getArrowptFn();
-        this.arrowptFp = comparison.getArrowptFp();
-        this.arrowptCorrect = comparison.getArrowptCorrect();
-        this.twoCycleCorrect = comparison.getTwoCycleCorrect();
-        this.twoCycleFn = comparison.getTwoCycleFn();
-        this.twoCycleFp = comparison.getTwoCycleFp();
-
-        this.edgesAdded = comparison.getEdgesAdded();
-        this.edgesRemoved = comparison.getEdgesRemoved();
-        this.edgesReorientedFrom = comparison.getEdgesReorientedFrom();
-        this.edgesReorientedTo = comparison.getEdgesReorientedTo();
-
-        if (!(adjFn == 0 && adjFp == 0 && arrowptFn == 0 && arrowptFp == 0)) {
-            System.out.println("ERROR!");
-//            System.out.println("Reference graph = " + referenceGraph);q
-            System.out.println("Target graph = " + targetGraph);
-            System.out.println("adj fn = " + adjFn + " adj fp = " + adjFp + " arrowptfn = " + arrowptFn +
-                    " arrowptfp = " + arrowptFp);
-
-            Preferences.userRoot().putBoolean("errorFound", true);
-        }
-
         if (this.params != null) {
-            this.params.addRecord(adjCorrect, adjFn, adjFp,
-                    arrowptCorrect, arrowptFn, arrowptFp,
-                    twoCycleCorrect, twoCycleFn, twoCycleFp);
+           this.params.addRecord(SearchGraphUtils.getGraphComparison2(targetGraph, alteredRefGraph));
         }
 
         TetradLogger.getInstance().log("info", "Graph Comparison");
@@ -309,91 +173,6 @@ public final class TabularComparison implements SessionModel {
                 params);
     }
 
-    public TabularComparison(Graph referenceGraph, Graph targetGraph) {
-        this.referenceGraph = referenceGraph;
-        this.targetGraph = targetGraph;
-        String datasetName = "Comparing " + params.getReferenceGraphName() + " to " + params.getTargetGraphName();
-        this.getDataSet().setName(datasetName);
-        Graph alteredRefGraph;
-
-        //Normally, one's target graph won't have latents, so we'll want to
-        // remove them from the ref graph to compare, but algorithms like
-        // MimBuild might not want to do this.
-        if (params != null && params.isKeepLatents()) {
-            alteredRefGraph = this.referenceGraph;
-        } else {
-            alteredRefGraph = removeLatent(this.targetGraph);
-        }
-
-        GraphUtils.GraphComparison comparison = SearchGraphUtils.
-                getGraphComparison(this.targetGraph, alteredRefGraph);
-
-        this.adjFn = comparison.getAdjFn();
-        this.adjFp = comparison.getAdjFp();
-        this.adjCorrect = comparison.getAdjCorrect();
-        this.arrowptFn = comparison.getArrowptFn();
-        this.arrowptFp = comparison.getArrowptFp();
-        this.arrowptCorrect = comparison.getArrowptCorrect();
-
-        this.edgesAdded = comparison.getEdgesAdded();
-        this.edgesRemoved = comparison.getEdgesRemoved();
-        this.edgesReorientedFrom = comparison.getEdgesReorientedFrom();
-        this.edgesReorientedTo = comparison.getEdgesReorientedTo();
-
-        if (params != null) {
-            params.addRecord(getAdjCorrect(), getAdjFn(), getAdjFp(),
-                    getArrowptCorrect(), getArrowptFn(), getArrowptFp(),
-                    getTwoCycleCorrect(), getTwoCycleFn(), getTwoCycleFp());
-        }
-
-        TetradLogger.getInstance().log("info", "Graph Comparison");
-        TetradLogger.getInstance().log("comparison", getCompareString());
-    }
-
-    public TabularComparison(Graph referenceGraph, Graph targetGraph,
-                             Graph trueGraph) {
-        this.referenceGraph = referenceGraph;
-        this.targetGraph = targetGraph;
-        this.trueGraph = trueGraph;
-        String datasetName = "Comparing " + params.getReferenceGraphName() + " to "
-                + params.getTargetGraphName();
-        this.getDataSet().setName(datasetName);
-        Graph alteredRefGraph;
-
-        //Normally, one's target graph won't have latents, so we'll want to
-        // remove them from the ref graph to compare, but algorithms like
-        // MimBuild might not want to do this.
-        if (params != null && params.isKeepLatents()) {
-            alteredRefGraph = this.referenceGraph;
-        } else {
-            alteredRefGraph = removeLatent(this.targetGraph);
-        }
-
-        GraphUtils.GraphComparison comparison = SearchGraphUtils.
-                getGraphComparison(this.targetGraph, alteredRefGraph);
-
-        this.adjFn = comparison.getAdjFn();
-        this.adjFp = comparison.getAdjFp();
-        this.adjCorrect = comparison.getAdjCorrect();
-        this.arrowptFn = comparison.getArrowptFn();
-        this.arrowptFp = comparison.getArrowptFp();
-        this.arrowptCorrect = comparison.getArrowptCorrect();
-
-        this.edgesAdded = comparison.getEdgesAdded();
-        this.edgesRemoved = comparison.getEdgesRemoved();
-        this.edgesReorientedFrom = comparison.getEdgesReorientedFrom();
-        this.edgesReorientedTo = comparison.getEdgesReorientedTo();
-
-        if (params != null) {
-            params.addRecord(getAdjCorrect(), getAdjFn(), getAdjFp(),
-                    getArrowptCorrect(), getArrowptFn(), getArrowptFp(),
-                    getTwoCycleCorrect(), getTwoCycleFn(), getTwoCycleFp());
-        }
-
-        TetradLogger.getInstance().log("info", "Graph Comparison");
-        TetradLogger.getInstance().log("comparison", getCompareString());
-    }
-
     private String getCompareString() {
         return params.getDataSet().toString();
     }
@@ -421,27 +200,6 @@ public final class TabularComparison implements SessionModel {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public List<Edge> getEdgesAdded() {
-        return edgesAdded;
-    }
-
-    public List<Edge> getEdgesRemoved() {
-        return edgesRemoved;
-    }
-
-    public List<Edge> getEdgesReorientedFrom() {
-        return edgesReorientedFrom;
-    }
-
-    public List<Edge> getEdgesReorientedTo() {
-        return edgesReorientedTo;
-    }
-
-    public String toString() {
-        return "Errors of omission = " + getAdjFn() +
-                ", Errors of commission = " + getAdjFp();
     }
 
     //============================PRIVATE METHODS=========================//
@@ -489,49 +247,6 @@ public final class TabularComparison implements SessionModel {
     }
 
     /**
-     * @return the number of correct edges last time they were counted.
-     */
-    private int getAdjCorrect() {
-        return adjCorrect;
-    }
-
-    /**
-     * @return the number of errors of omission (in the reference workbench but
-     * not in the target workbench) the last time they were counted.
-     */
-    private int getAdjFn() {
-        return adjFn;
-    }
-
-    private int getAdjFp() {
-        return adjFp;
-    }
-
-    private int getArrowptCorrect() {
-        return arrowptCorrect;
-    }
-
-    private int getArrowptFn() {
-        return arrowptFn;
-    }
-
-    private int getTwoCycleFp() {
-        return twoCycleFp;
-    }
-
-    private int getTwoCycleCorrect() {
-        return twoCycleCorrect;
-    }
-
-    private int getTwoCycleFn() {
-        return twoCycleFn;
-    }
-
-    private int getArrowptFp() {
-        return arrowptFp;
-    }
-
-    /**
      * Adds semantic checks to the default deserialization method. This method
      * must have the standard signature for a readObject method, and the body of
      * the method must begin with "s.defaultReadObject();". Other than that, any
@@ -555,22 +270,6 @@ public final class TabularComparison implements SessionModel {
         if (targetGraph == null) {
             throw new NullPointerException();
         }
-
-//        if (referenceGraph == null) {
-//            throw new NullPointerException();
-//        }
-
-        if (getAdjCorrect() < 0) {
-            throw new IllegalArgumentException();
-        }
-
-        if (getAdjFn() < 0) {
-            throw new IllegalArgumentException();
-        }
-
-        if (getAdjFp() < 0) {
-            throw new IllegalArgumentException();
-        }
     }
 
     public Graph getTrueGraph() {
@@ -579,6 +278,26 @@ public final class TabularComparison implements SessionModel {
 
     public void setTrueGraph(Graph trueGraph) {
         this.trueGraph = trueGraph;
+    }
+
+    @Override
+    public Map<String, String> getParamSettings() {
+        Map<String, String> paramSettings = new HashMap<>();
+
+//        paramSettings.put("True Graph", params.getReferenceGraphName());
+//        paramSettings.put("Target Graph", params.getTargetGraphName());
+
+        return paramSettings;
+    }
+
+    @Override
+    public void setAllParamSettings(Map<String, String> paramSettings) {
+        this.allParamSettings = new LinkedHashMap<>(paramSettings);
+    }
+
+    @Override
+    public Map<String, String> getAllParamSettings() {
+        return allParamSettings;
     }
 }
 
