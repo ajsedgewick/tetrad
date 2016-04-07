@@ -21,6 +21,8 @@ package edu.pitt.csb.mgm;
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA //
 ///////////////////////////////////////////////////////////////////////////////
 
+import edu.cmu.tetrad.data.ContinuousVariable;
+import edu.cmu.tetrad.data.DiscreteVariable;
 import edu.cmu.tetrad.data.IKnowledge;
 import edu.cmu.tetrad.data.Knowledge2;
 import edu.cmu.tetrad.graph.*;
@@ -493,6 +495,11 @@ public class FasStableConcurrentAJ implements IFas {
                                         regressors.addAll(condList);
                                         for(int pi = 0; pi < pvec.length; pi++) {
                                             Node curNode = regressors.get(pi);
+
+                                            // we don't want to do our c-d tests this way...
+                                            if(curNode instanceof ContinuousVariable && x instanceof DiscreteVariable)
+                                                continue;
+
                                             List<Node> curCond = new ArrayList<Node>(regressors);
                                             curCond.remove(pi);
 

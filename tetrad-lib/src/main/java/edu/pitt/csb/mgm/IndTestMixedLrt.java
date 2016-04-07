@@ -54,7 +54,7 @@ import java.util.*;
  * @author Joseph Ramsey
  * @author Augustus Mayo.
  */
-public class IndTestMultinomialAJ implements IndependenceTest {
+public class IndTestMixedLrt implements IndependenceTest {
     private DataSet originalData;
     private List<Node> searchVariables;
     private DataSet internalData;
@@ -66,7 +66,7 @@ public class IndTestMultinomialAJ implements IndependenceTest {
     private boolean verbose = false;
     private DoubleFactory2D factory2D = DoubleFactory2D.dense;
 
-    public IndTestMultinomialAJ(DataSet data, double alpha) {
+    public IndTestMixedLrt(DataSet data, double alpha) {
         this.searchVariables = data.getVariables();
         this.originalData = data.copy();
         DataSet internalData = data.copy();
@@ -99,10 +99,12 @@ public class IndTestMultinomialAJ implements IndependenceTest {
     public boolean isIndependent(Node x, Node y, List<Node> z) {
         if (x instanceof DiscreteVariable && y instanceof DiscreteVariable) {
             return isIndependentMultinomialLogisticRegression(x, y, z);
-        } else if (x instanceof DiscreteVariable) {
-            return isIndependentRegression(y, x, z);
-        } else {
+        } else if (y instanceof DiscreteVariable) {
+        //else if (x instanceof DiscreteVariable) {
+            //return isIndependentMultinomialLogisticRegression(y, x, z);
             return isIndependentRegression(x, y, z);
+        } else {
+            return isIndependentRegression(y, x, z);
         }
     }
 
@@ -337,7 +339,7 @@ public class IndTestMultinomialAJ implements IndependenceTest {
     }
 
     private boolean isIndependentRegression(Node x, Node y, List<Node> z) {
-        /*if (!variablesPerNode.containsKey(x)) {
+        if (!variablesPerNode.containsKey(x)) {
             throw new IllegalArgumentException("Unrecogized node: " + x);
         }
 
@@ -351,104 +353,53 @@ public class IndTestMultinomialAJ implements IndependenceTest {
             }
         }
 
-        List<Node> regressors = new ArrayList<Node>();
-        regressors.add(internalData.getVariable(y.getName()));
+        List<Node> zList = new ArrayList<Node>();
+        List<Node> yzList = new ArrayList<Node>();
+        //zList.add(internalData.getVariable(y.getName()));
 
         for (Node _z : z) {
-            regressors.addAll(variablesPerNode.get(_z));
+            zList.addAll(variablesPerNode.get(_z));
         }
+
+        yzList.addAll(variablesPerNode.get(y));
+        yzList.addAll(zList);
+
 
         int[] _rows = getNonMissingRows(x, y, z);
         regression.setRows(_rows);
 
-        RegressionResult result;
+        RegressionResult result1, result0;
 
         try {
-            result = regression.regress(x, regressors);
+            result0 = regression.regress(x, zList);
+            result1 = regression.regress(x, yzList);
         } catch (Exception e) {
+            e.printStackTrace();
             return false;
         }
 
-        double p = result.getP()[1];
+        double rss0 = 0;
+        double rss1 = 0;
+        double n = (double) _rows.length;
+        for(int i = 0; i < n; i++){
+            rss0 += Math.pow(result0.getResiduals().get(i),2);
+            rss1 += Math.pow(result1.getResiduals().get(i),2);
+        }
+        //val <- 0.5 * (sum(log(w)) - N * (log(2 * pi) + 1 - log(N) +
+        //        log(sum(w * res^2))))
+        //double ll0 = -.5*n*(1-Math.log(n) - Math.log(2*Math.PI) + Math.log(rss0));
+        //double ll1 = -.5*n*(1-Math.log(n) - Math.log(2*Math.PI) + Math.log(rss1));
+        //-2*ll = n ln(RSS/n)
+
+        //double chisq = 2*(ll1 - ll0);
+        //System.out.println(chisq);
+        double chisq = -n*(Math.log(rss1) - Math.log(rss0));
+        //System.out.println(chisq);
+        int df = variablesPerNode.get(y).size();
+        double p = 1.0 - new ChiSquaredDistribution(df).cumulativeProbability(chisq);
+
         this.lastP = p;
 
-        boolean indep = p > alpha;
-
-        if (verbose) {
-            if (indep) {
-                TetradLogger.getInstance().log("independencies", SearchLogUtils.independenceFactMsg(x, y, z, p));
-            } else {
-                TetradLogger.getInstance().log("dependencies", SearchLogUtils.dependenceFactMsg(x, y, z, p));
-            }
-        }
-
-        return indep;*/
-        if (!variablesPerNode.containsKey(x)) {
-            throw new IllegalArgumentException("Unrecogized node: " + x);
-        }
-
-        if (!variablesPerNode.containsKey(y)) {
-            throw new IllegalArgumentException("Unrecogized node: " + y);
-        }
-
-        for (Node node : z) {
-            if (!variablesPerNode.containsKey(node)) {
-                throw new IllegalArgumentException("Unrecogized node: " + node);
-            }
-        }
-
-        List<Node> yzDumList = new ArrayList<>();
-        List<Node> yzList = new ArrayList<>();
-        yzList.add(y);
-        yzList.addAll(z);
-        //List<Node> zList = new ArrayList<>();
-
-        yzDumList.addAll(variablesPerNode.get(y));
-        for (Node _z : z) {
-            yzDumList.addAll(variablesPerNode.get(_z));
-            //zList.addAll(variablesPerNode.get(_z));
-        }
-
-        int[] _rows = getNonMissingRows(x, y, z);
-        regression.setRows(_rows);
-
-        RegressionResult result = null;
-
-        try {
-            result = regression.regress(x, yzDumList);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        double[] pVec = new double[yzList.size()];
-        double[] pCoef = result.getP();
-
-        //skip intercept at 0
-        int coeffInd = 1;
-
-        for (int i = 0; i < pVec.length; i++) {
-            List<Node> curDummy = variablesPerNode.get(yzList.get(i));
-            if (curDummy.size() == 1) {
-                pVec[i] = pCoef[coeffInd];
-                coeffInd++;
-                continue;
-            } else {
-                pVec[i] = 0;
-            }
-
-            for (Node n : curDummy) {
-                pVec[i] += Math.log(pCoef[coeffInd]);
-                coeffInd++;
-            }
-
-            if(pVec[i]==Double.NEGATIVE_INFINITY)
-                pVec[i] = 0.0;
-            else
-                pVec[i] = 1.0 - new ChiSquaredDistribution(2 * curDummy.size()).cumulativeProbability(-2 * pVec[i]);
-        }
-
-        double p = pVec[0];
-        this.lastP = p;
         boolean indep = p > alpha;
 
         if (verbose) {

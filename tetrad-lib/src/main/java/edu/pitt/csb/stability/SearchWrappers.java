@@ -25,7 +25,9 @@ import edu.cmu.tetrad.data.DataSet;
 import edu.cmu.tetrad.graph.Graph;
 import edu.cmu.tetrad.search.Fgs;
 import edu.cmu.tetrad.search.IndTestMultinomialLogisticRegression;
+import edu.cmu.tetrad.search.IndependenceTest;
 import edu.cmu.tetrad.search.PcStable;
+import edu.pitt.csb.mgm.IndTestMixedLrt;
 import edu.pitt.csb.mgm.MGM;
 import edu.pitt.csb.mgm.MixedUtils;
 
@@ -34,6 +36,8 @@ import edu.pitt.csb.mgm.MixedUtils;
  */
 public class SearchWrappers {
     public static class PcStableWrapper extends DataGraphSearch {
+        private IndependenceTest test = null;
+
         //should be one param for the alpha level of the independance test
         public PcStableWrapper(boolean verbose, double... params) {
             super(verbose, params);
@@ -41,9 +45,13 @@ public class SearchWrappers {
 
         public PcStableWrapper copy(){return new PcStableWrapper(verbose, searchParams);}
 
+        public void setIndependenceTest(IndependenceTest t){this.test = t;}
+
         public Graph search(DataSet ds) {
-            IndTestMultinomialLogisticRegression indTest = new IndTestMultinomialLogisticRegression(ds, searchParams[0]);
-            PcStable pcs = new PcStable(indTest);
+            if(test == null)
+                test = new IndTestMixedLrt(ds, searchParams[0]);
+                //test = new IndTestMultinomialLogisticRegression(ds, searchParams[0]);
+            PcStable pcs = new PcStable(test);
             if(searchParams.length==2 && searchParams[1] >= 0)
                 pcs.setDepth((int) searchParams[1]);
             pcs.setVerbose(this.verbose);

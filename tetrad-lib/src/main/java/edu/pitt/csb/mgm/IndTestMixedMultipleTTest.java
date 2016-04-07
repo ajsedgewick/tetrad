@@ -67,6 +67,7 @@ public class IndTestMixedMultipleTTest implements IndependenceTest {
     private boolean verbose = false;
     private DoubleFactory2D factory2D = DoubleFactory2D.dense;
     private boolean flipLast;
+    private boolean preferLinear = true;
 
     public IndTestMixedMultipleTTest(DataSet data, double alpha) {
         this.searchVariables = data.getVariables();
@@ -86,6 +87,10 @@ public class IndTestMixedMultipleTTest implements IndependenceTest {
         this.regression = new RegressionDataset(internalData);
     }
 
+    public void setPreferLinear(boolean preferLinear){
+        this.preferLinear = preferLinear;
+    }
+
     /**
      * @return an Independence test for a subset of the searchVariables.
      */
@@ -103,11 +108,21 @@ public class IndTestMixedMultipleTTest implements IndependenceTest {
             flipLast = false;
             return isIndependentMultinomialLogisticRegression(x, y, z);
         } else if (x instanceof DiscreteVariable) {
-            flipLast = true;
-            return isIndependentRegression(y, x, z);
+            if(preferLinear) {
+                flipLast = true;
+                return isIndependentRegression(y, x, z);
+            } else {
+                flipLast = false;
+                return isIndependentMultinomialLogisticRegression(x, y, z);
+            }
         } else {
-            flipLast = false;
-            return isIndependentRegression(x, y, z);
+            if(y instanceof DiscreteVariable && !preferLinear) {
+                flipLast = true;
+                return isIndependentMultinomialLogisticRegression(y, x, z);
+            } else {
+                flipLast = false;
+                return isIndependentRegression(x, y, z);
+            }
         }
     }
 
@@ -115,12 +130,22 @@ public class IndTestMixedMultipleTTest implements IndependenceTest {
         if (x instanceof DiscreteVariable && y instanceof DiscreteVariable) {
             flipLast = false;
             return dependencePvalsLogit(x, y, z);
-        } else if(x instanceof DiscreteVariable){
-            flipLast = true;
-            return dependencePvalsLinear(y, x, z);
+        } else if (x instanceof DiscreteVariable) {
+            if(preferLinear) {
+                flipLast = true;
+                return dependencePvalsLinear(y, x, z);
+            } else {
+                flipLast = false;
+                return dependencePvalsLogit(x, y, z);
+            }
         } else {
-            flipLast = false;
-            return dependencePvalsLinear(x, y, z);
+            if(y instanceof DiscreteVariable && !preferLinear) {
+                flipLast = true;
+                return dependencePvalsLogit(y, x, z);
+            } else {
+                flipLast = false;
+                return dependencePvalsLinear(x, y, z);
+            }
         }
     }
 
@@ -256,12 +281,9 @@ public class IndTestMixedMultipleTTest implements IndependenceTest {
 
     private boolean isIndependentMultinomialLogisticRegression(Node x, Node y, List<Node> z) {
         double p = dependencePvalsLogit(x,y,z)[0];
-        boolean indep = true;
+        boolean indep = p > alpha;
             //0 corresponds to y
-        if (p <= alpha) {
-            indep = false;
-            this.lastP = p;
-        }
+        this.lastP = p;
 
         if (indep) {
             TetradLogger.getInstance().log("independencies", SearchLogUtils.independenceFactMsg(x, y, z, p));
