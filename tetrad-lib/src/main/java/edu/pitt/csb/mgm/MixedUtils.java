@@ -951,12 +951,14 @@ public class MixedUtils {
                 e.printStackTrace();
             }
 
-            try {
-                cl = Class.forName("edu.pitt.csb.mgm." + name);
-            } catch (ClassNotFoundException e) {
-                throw new IllegalArgumentException("-test argument not recognized");
-            } catch (Exception e) {
-                e.printStackTrace();
+            if(cl==null) {
+                try {
+                    cl = Class.forName("edu.pitt.csb.mgm." + name);
+                } catch (ClassNotFoundException e) {
+                    throw new IllegalArgumentException("-test argument not recognized");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
 
             try {
