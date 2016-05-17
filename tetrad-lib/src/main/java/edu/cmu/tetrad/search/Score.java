@@ -33,6 +33,8 @@ public interface Score {
 
     double localScoreDiff(int x, int y, int[] z);
 
+    double localScoreDiff(int x, int y);
+
     double localScore(int node, int parent);
 
     double localScore(int node);
@@ -48,5 +50,9 @@ public interface Score {
     void setParameter1(double alpha);
 
     int getSampleSize();
+
+    Node getVariable(String targetName);
+
+    int getMaxIndegree();
 }
 

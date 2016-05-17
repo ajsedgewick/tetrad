@@ -80,6 +80,12 @@ public class ScoredIndTest implements Score {
         return test.getScore();
     }
 
+    @Override
+    public double localScoreDiff(int x, int y) {
+        return localScore(y, x) - localScore(y);
+    }
+
+
     int[] append(int[] parents, int extra) {
         int[] all = new int[parents.length + 1];
         System.arraycopy(parents, 0, all, 0, parents.length);
@@ -140,6 +146,23 @@ public class ScoredIndTest implements Score {
     public void setParameter1(double alpha) {
         test.setAlpha(alpha);
     }
+
+    @Override
+    public Node getVariable(String targetName) {
+        for (Node node : variables) {
+            if (node.getName().equals(targetName)) {
+                return node;
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public int getMaxIndegree() {
+        return 1000;
+    }
+
 }
 
 

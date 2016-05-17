@@ -21,12 +21,15 @@
 
 package edu.pitt.csb.stability;
 
+import edu.cmu.tetrad.data.CovarianceMatrixOnTheFly;
 import edu.cmu.tetrad.data.DataSet;
 import edu.cmu.tetrad.graph.Graph;
+
 import edu.cmu.tetrad.search.Fgs;
 import edu.cmu.tetrad.search.IndependenceTest;
 import edu.cmu.tetrad.search.PcStable;
 import edu.pitt.csb.mgm.IndTestMixedLrt;
+
 import edu.pitt.csb.mgm.MGM;
 import edu.pitt.csb.mgm.MixedUtils;
 
@@ -96,7 +99,5 @@ public class SearchWrappers {
             return fg.search();
         }
     }
-
-
 }
 

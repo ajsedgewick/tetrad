@@ -21,6 +21,7 @@
 
 package edu.cmu.tetrad.data;
 
+import EDU.oswego.cs.dl.util.concurrent.SyncMap;
 import cern.colt.matrix.DoubleMatrix2D;
 import edu.cmu.tetrad.graph.Node;
 import edu.cmu.tetrad.util.*;
@@ -46,6 +47,7 @@ import java.util.concurrent.RecursiveTask;
  */
 public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
     static final long serialVersionUID = 23L;
+    private boolean verbose = false;
 
     /**
      * The name of the covariance matrix.
@@ -103,11 +105,18 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
     //=============================CONSTRUCTORS=========================//
 
     /**
-     * Constructs a new covariance matrix from the given data set.
+     * Constructs a new covariance matrix from the given data set. If dataSet is
+     * a BoxDataSet with a VerticalDoubleDataBox, the data will be mean-centered
+     * by the constructor; is non-mean-centered version of the data is needed,
+     * the data should be copied before being send into the constructor.
      *
      * @throws IllegalArgumentException if this is not a continuous data set.
      */
     public CovarianceMatrixOnTheFly(DataSet dataSet) {
+        this(dataSet, false);
+    }
+
+    public CovarianceMatrixOnTheFly(DataSet dataSet, boolean verbose) {
         if (!dataSet.isContinuous()) {
             throw new IllegalArgumentException("Not a continuous data set.");
         }
@@ -115,28 +124,82 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
         this.variables = Collections.unmodifiableList(dataSet.getVariables());
         this.sampleSize = dataSet.getNumRows();
 
+        if (verbose) {
+            System.out.println("Calculating variable vectors");
+        }
+
         if (dataSet instanceof BoxDataSet) {
 
-            DataBox box = ((BoxDataSet) dataSet).getDataBox().copy();
+            DataBox box = ((BoxDataSet) dataSet).getDataBox();
 
             if (box instanceof VerticalDoubleDataBox) {
+                if (verbose) {
+                    System.out.println("Getting vectors from VerticalDoubleDataBox");
+                }
+//                box = box.copy();
+
                 if (!dataSet.getVariables().equals(variables)) throw new IllegalArgumentException();
 
                 vectors = ((VerticalDoubleDataBox) box).getVariableVectors();
 
-//                final TetradMatrix doubleData = dataSet.getDoubleData();
+                if (verbose) {
+                    System.out.println("Calculating means");
+                }
+
                 TetradVector means = DataUtils.means(vectors);
                 DataUtils.demean(vectors, means);
+            } else if (box instanceof DoubleDataBox) {
+                if (verbose) {
+                    System.out.println("Getting vectors from DoubleDataBox");
+                }
+                if (!dataSet.getVariables().equals(variables)) throw new IllegalArgumentException();
+                double[][] horizData = ((DoubleDataBox) box).getData();
 
-//                DataUtils.remean(doubleData, means);
+                if (verbose) {
+                    System.out.println("Transposing data");
+                }
+
+                vectors = new double[horizData[0].length][horizData.length];
+
+                for (int i = 0; i < horizData.length; i++) {
+                    for (int j = 0; j < horizData[0].length; j++) {
+                        vectors[j][i] = horizData[i][j];
+                    }
+                }
+
+                if (verbose) {
+                    System.out.println("Calculating means");
+                }
+
+                TetradVector means = DataUtils.means(vectors);
+                DataUtils.demean(vectors, means);
             }
+
 
         }
 
         if (vectors == null) {
+            if (verbose) {
+                System.out.println("Copying data");
+            }
+
             final TetradMatrix doubleData = dataSet.getDoubleData().copy();
+
+            if (verbose) {
+                System.out.println("Calculating means");
+            }
+
             TetradVector means = DataUtils.means(doubleData);
+
+            if (verbose) {
+                System.out.println("Demeaning");
+            }
+
             DataUtils.demean(doubleData, means);
+
+            if (verbose) {
+                System.out.println("Getting vectors from data");
+            }
 
             final RealMatrix realMatrix = doubleData.getRealMatrix();
 
@@ -145,8 +208,10 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
             for (int i = 0; i < variables.size(); i++) {
                 vectors[i] = realMatrix.getColumnVector(i).toArray();
             }
+        }
 
-//            DataUtils.remean(doubleData, means);
+        if (verbose) {
+            System.out.println("Calculating variances");
         }
 
         this.variances = new double[variables.size()];
@@ -220,8 +285,9 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
         VarianceTask task = new VarianceTask(chunk, 0, variables.size());
         ForkJoinPoolInstance.getInstance().getPool().invoke(task);
 
-
-//        System.out.println("Done with variances.");
+        if (verbose) {
+            System.out.println("Done with variances.");
+        }
 
 
     }
@@ -408,6 +474,14 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
      * @return a copy of the covariance matrix.
      */
     public final TetradMatrix getMatrix() {
+        TetradMatrix matrix = new TetradMatrix(getDimension(), getDimension());
+
+        for (int i = 0; i < getDimension(); i++) {
+            for (int j = 0; j < getDimension(); j++) {
+                matrix.set(i, j, getValue(i, j));
+            }
+        }
+
         return matrix;
     }
 
@@ -480,12 +554,43 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
 
     public void setVariables(List<Node> variables) {
         if (variables.size() != this.variables.size()) throw new IllegalArgumentException("Wrong # of variables.");
-        for (int i = 0; i < variables.size(); i++) {
-            if (!variables.get(i).getName().equals(variables.get(i).getName())) {
-                throw new IllegalArgumentException("Variable in index " + (i + 1) + " does not have the same name " +
-                        "as the variable being substituted for it.");
-            }
-            this.variables = variables;
+
+//        for (int i = 0; i < variables.size(); i++) {
+//            if (!variables.get(i).getNode().equals(variables.get(i).getNode())) {
+//                throw new IllegalArgumentException("Variable in index " + (i + 1) + " does not have the same name " +
+//                        "as the variable being substituted for it.");
+//            }
+//        }
+
+        this.variables = variables;
+    }
+
+    public boolean isVerbose() {
+        return verbose;
+    }
+
+    public void setVerbose(boolean verbose) {
+        this.verbose = verbose;
+    }
+
+    private class IntPair {
+        private final int x;
+        private final int y;
+
+        public IntPair(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+
+        public int hashCode() {
+            return x + y;
+        }
+
+        public boolean equals(Object o) {
+            if (o == null) return false;
+//            if (!(o instanceof IntPair)) return false;
+            IntPair pair = (IntPair) o;
+            return pair == this || (this.x == pair.x && this.y == pair.y);
         }
     }
 
@@ -493,9 +598,20 @@ public class CovarianceMatrixOnTheFly implements ICovarianceMatrix {
     public TetradMatrix getSelection(int[] rows, int[] cols) {
         TetradMatrix m = new TetradMatrix(rows.length, cols.length);
 
-        for (int i = 0; i < rows.length; i++) {
-            for (int j = 0; j < cols.length; j++) {
-                m.set(i, j, getValue(rows[i], cols[j]));
+        if (Arrays.equals(rows, cols)) {
+            for (int i = 0; i < rows.length; i++) {
+                for (int j = i; j < cols.length; j++) {
+                    double value = getValue(rows[i], cols[j]);
+                    m.set(i, j, value);
+                    m.set(j, i, value);
+                }
+            }
+        } else {
+            for (int i = 0; i < rows.length; i++) {
+                for (int j = 0; j < cols.length; j++) {
+                    double value = getValue(rows[i], cols[j]);
+                    m.set(i, j, value);
+                }
             }
         }
 

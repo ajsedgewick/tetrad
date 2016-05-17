@@ -22,26 +22,18 @@
 package edu.cmu.tetrad.test;
 
 import edu.cmu.tetrad.data.*;
-import edu.cmu.tetrad.graph.Graph;
-import edu.cmu.tetrad.graph.GraphUtils;
-import edu.cmu.tetrad.graph.Node;
-import edu.cmu.tetrad.search.DagToPag;
-import edu.cmu.tetrad.search.GFci;
-import edu.cmu.tetrad.search.IndTestFisherZ;
-import edu.cmu.tetrad.search.SearchGraphUtils;
+import edu.cmu.tetrad.graph.*;
+import edu.cmu.tetrad.search.*;
 import edu.cmu.tetrad.sem.LargeSemSimulator;
-import edu.cmu.tetrad.sem.SemIm;
-import edu.cmu.tetrad.sem.SemImInitializationParams;
-import edu.cmu.tetrad.sem.SemPm;
-import edu.cmu.tetrad.util.MatrixUtils;
 import edu.cmu.tetrad.util.RandomUtil;
 import org.junit.Test;
 
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -97,9 +89,9 @@ public class TestGFci {
         GFci gFci = new GFci(independenceTest);
         gFci.setVerbose(false);
         gFci.setPenaltyDiscount(penaltyDiscount);
-        gFci.setDepth(depth);
+        gFci.setMaxIndegree(depth);
         gFci.setMaxPathLength(maxPathLength);
-        gFci.setPossibleDsepSearchDone(possibleDsepDone);
+//        gFci.setPossibleDsepSearchDone(possibleDsepDone);
         gFci.setCompleteRuleSetUsed(completeRuleSetUsed);
         gFci.setFaithfulnessAssumed(faithfulnessAssumed);
         Graph outGraph = gFci.search();
@@ -130,6 +122,125 @@ public class TestGFci {
 
 //        System.out.println(MatrixUtils.toString(counts));
 //        System.out.println(MatrixUtils.toString(expectedCounts));
+    }
+
+    @Test
+    public void test2() {
+        Node x1 = new GraphNode("X1");
+        Node x2 = new GraphNode("X2");
+        Node x3 = new GraphNode("X3");
+        Node x4 = new GraphNode("X4");
+        Node L = new GraphNode("L");
+        L.setNodeType(NodeType.LATENT);
+
+        Graph g1 = new EdgeListGraph();
+        g1.addNode(x1);
+        g1.addNode(x2);
+        g1.addNode(x3);
+        g1.addNode(x4);
+        g1.addNode(L);
+
+        g1.addDirectedEdge(x1, x2);
+        g1.addDirectedEdge(x4, x3);
+        g1.addDirectedEdge(L, x2);
+        g1.addDirectedEdge(L, x3);
+
+        GFci gfci = new GFci(new IndTestDSep(g1));
+
+        Graph pag = gfci.search();
+
+        Graph truePag = new EdgeListGraph();
+
+        truePag.addNode(x1);
+        truePag.addNode(x2);
+        truePag.addNode(x3);
+        truePag.addNode(x4);
+
+        truePag.addPartiallyOrientedEdge(x1, x2);
+        truePag.addBidirectedEdge(x2, x3);
+        truePag.addPartiallyOrientedEdge(x4, x3);
+
+//        System.out.println(pag);
+
+        assertEquals(pag, truePag);
+    }
+
+    @Test
+    public void testFromGraph() {
+        RandomUtil.getInstance().setSeed(new Date().getTime());
+
+        int numNodes = 20;
+        int numLatents = 5;
+        int numIterations = 20;
+
+        boolean completeRuleSetUsed = false;
+        boolean faithfulnessAssumed = true;
+
+        for (int i = 0; i < numIterations; i++) {
+            System.out.println("Iteration " + (i + 1));
+            Graph dag = GraphUtils.randomGraph(numNodes, numLatents, numNodes,
+                    10, 10, 10, false);
+
+            GFci gfci = new GFci(new GraphScore(dag));
+            gfci.setCompleteRuleSetUsed(completeRuleSetUsed);
+//            GFci gfci = new GFci(new IndTestDSep(dag));
+            gfci.setFaithfulnessAssumed(faithfulnessAssumed);
+            Graph pattern1 = gfci.search();
+            DagToPag2 dagToPag2 = new DagToPag2(dag);
+            dagToPag2.setCompleteRuleSetUsed(completeRuleSetUsed);
+            Graph pattern2 = dagToPag2.convert();
+
+//            System.out.println(pattern1);
+//            System.out.println(pattern2);
+//
+//            System.out.println(MisclassificationUtils.edgeMisclassifications(pattern1, pattern2));
+            assertEquals(pattern2, pattern1);
+        }
+    }
+
+    @Test
+    public void testFromData() {
+        int numNodes = 100;
+        int numLatents = 50;
+        int numEdges = 100;
+        int sampleSize = 1000;
+
+//        System.out.println(RandomUtil.getInstance().getSeed());
+//
+//        RandomUtil.getInstance().setSeed(1461186701390L);
+
+
+        List<Node> variables = new ArrayList<>();
+
+        for (int i = 0; i < numNodes; i++) {
+            variables.add(new ContinuousVariable("X" + (i + 1)));
+        }
+
+        Graph g = GraphUtils.randomGraphRandomForwardEdges(variables, numLatents, numEdges, 10, 10, 10, false, false);
+
+        LargeSemSimulator semSimulator = new LargeSemSimulator(g);
+
+        DataSet data = semSimulator.simulateDataAcyclic(sampleSize);
+
+        data = DataUtils.restrictToMeasured(data);
+
+        SemBicScore score = new SemBicScore(new CovarianceMatrixOnTheFly(data));
+        score.setPenaltyDiscount(4);
+        GFci gFci = new GFci(score);
+        gFci.setFaithfulnessAssumed(true);
+
+        long start = System.currentTimeMillis();
+
+        Graph graph = gFci.search();
+
+        long stop = System.currentTimeMillis();
+
+        System.out.println("Elapsed " + (stop - start) + " ms");
+
+        DagToPag2 dagToPag2 = new DagToPag2(g);
+        dagToPag2.setVerbose(true);
+        System.out.println(MisclassificationUtils.edgeMisclassifications(graph, dagToPag2.convert()));
+
     }
 }
 

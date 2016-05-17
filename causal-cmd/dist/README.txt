@@ -22,7 +22,7 @@ Java 8 is the only prerequisite to run the software.  Note that by default Java 
 Download the this file, [http://www.ccd.pitt.edu/wp-content/uploads/files/Retention.txt Retention.txt], which is a dataset containing information on college graduation and used in the publication "What Do College Ranking Data Tell Us About Student Retention?" by Drudzel and Glymour, 1994.
 
 <pre>
-java -jar @ARTIFACT_ID@-@VERSION@-jar-with-dependencies.jar --algorithm fgs --data Retention.txt  --depth -1 --output output --verbose
+java -jar @ARTIFACT_ID@-@VERSION@-jar-with-dependencies.jar --algorithm fgs --data Retention.txt  --maxIndegree -1 --output output --verbose
 </pre>
 
 The program will output the results of the FGS search procedure as a text file (in this example to output).   The beginning of the file contains the algorithm parameters used in the search.
@@ -41,7 +41,7 @@ Graph Edges:
 9. tst_scores --- stdt_clss_stndng
 </pre>
 
-In FGS, "Elapsed getEffectEdges = XXms" refers to the amount of time it took to evaluate all pairs of variables for correlation.  The file then details each step taken in the greedy search procedure i.e., insertion or deletion of edges based on a scoring function (i.e., BIC score difference for each chosen search operation).
+In FGS, "Elapsed getEffectEdges = XXms" refers to the amount of time it took to evaluate all pairs of variables for correlation.  The file then details each step taken in the greedy search procedure i.e., insertion or deletion of edges based on a scoring function (i.e., BIC totalScore difference for each chosen search operation).
 
 The end of the file contains the causal graph from the search procedure.  Here is a key to the edge types
 <pre>
@@ -117,7 +117,7 @@ Tetrad-cli has different switches for different algorithms.
 === Tetrad-cli usage for FGS for continuous data ===
 <pre>
 usage: java -jar tetrad-cli.jar --algorithm fgs --data <arg> [--delimiter
-       <arg>] [--depth <arg>] [--exclude-variables <arg>] [--faithful]
+       <arg>] [--maxIndegree <arg>] [--exclude-variables <arg>] [--faithful]
        [--graphml] [--help] [--ignore-linear-dependence] [--knowledge
        <arg>] [--no-validation-output] [--out <arg>] [--output-prefix
        <arg>] [--penalty-discount <arg>] [--skip-non-zero-variance]
@@ -125,7 +125,7 @@ usage: java -jar tetrad-cli.jar --algorithm fgs --data <arg> [--delimiter
     --data <arg>                 Data file.
     --delimiter <arg>            Data delimiter either comma, semicolon,
                                  space, colon, or tab. Default is tab.
-    --depth <arg>                Search depth. Must be an integer >= -1
+    --maxIndegree <arg>                Search maxIndegree. Must be an integer >= -1
                                  (-1 means unlimited). Default is -1.
     --exclude-variables <arg>    A file containing variables to exclude.
     --faithful                   Assume faithfulness.

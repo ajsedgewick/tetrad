@@ -43,7 +43,7 @@ import java.util.concurrent.*;
  * <p>
  * To speed things up, it has been assumed that variables X and Y with zero correlation do not correspond to edges in
  * the graph. This is a restricted form of the faithfulness assumption, something GES does not assume. This
- * faithfulness assumption needs to be explicitly turned on using setFaithfulnessAssumed(true).
+ * faithfulness assumption needs to be explicitly turned on using setHeuristicSpeedup(true).
  * <p>
  * A number of other optimizations were added 5/2015. See code for details.
  *
@@ -149,7 +149,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
     private Graph adjacencies = null;
 
     // True if it is assumed that zero effect adjacencies are not in the graph.
-    private boolean faithfulnessAssumed = false;
+    private boolean heuristicSpeedup = false;
 
     // The graph being constructed.
     private Graph graph;
@@ -165,6 +165,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
 
     /**
      * The data set must either be all continuous or all discrete.
+     * @deprecated Construct a Score and pass it in instead.
      */
     public Fgs(DataSet dataSet) {
         if (verbose) {
@@ -172,9 +173,10 @@ public final class Fgs implements GraphSearch, GraphScorer {
         }
 
         if (dataSet.isDiscrete()) {
-            setFgsScore(new BDeuScore(dataSet));
+            setScore(new BDeuScore(dataSet));
         } else {
-            setFgsScore(new SemBicScore(new CovarianceMatrixOnTheFly(dataSet), 2.0));
+            SemBicScore fgsScore = new SemBicScore(new CovarianceMatrixOnTheFly(dataSet));
+            setScore(fgsScore);
         }
 
         this.graph = new EdgeListGraphSingleConnections(getVariables());
@@ -186,13 +188,16 @@ public final class Fgs implements GraphSearch, GraphScorer {
 
     /**
      * Continuous case--where a covariance matrix is already available.
+     * @deprecated Construct a Score and pass it in instead.
      */
     public Fgs(ICovarianceMatrix covMatrix) {
         if (verbose) {
             out.println("GES constructor");
         }
 
-        setFgsScore(new SemBicScore(covMatrix, 2.0));
+        SemBicScore score = new SemBicScore(covMatrix);
+        score.setPenaltyDiscount(2.0);
+        setScore(score);
 
         this.graph = new EdgeListGraphSingleConnections(getVariables());
 
@@ -203,24 +208,24 @@ public final class Fgs implements GraphSearch, GraphScorer {
 
     public Fgs(Score fgsScore) {
         if (fgsScore == null) throw new NullPointerException();
-        setFgsScore(fgsScore);
+        setScore(fgsScore);
         this.graph = new EdgeListGraphSingleConnections(getVariables());
     }
 
     //==========================PUBLIC METHODS==========================//
 
     /**
-     * Set to true if it is assumed that all path pairs with one length 1 path do not cancelAll.
+     * Set to true if it is assumed that all path pairs with one length 1 path do not cancel.
      */
-    public void setFaithfulnessAssumed(boolean faithfulness) {
-        this.faithfulnessAssumed = faithfulness;
+    public void setHeuristicSpeedup(boolean faithfulness) {
+        this.heuristicSpeedup = faithfulness;
     }
 
     /**
-     * @return true if it is assumed that all path pairs with one length 1 path do not cancelAll.
+     * @return true if it is assumed that all path pairs with one length 1 path do not cancel.
      */
-    public boolean isFaithfulnessAssumed() {
-        return this.faithfulnessAssumed;
+    public boolean isHeuristicSpeedup() {
+        return this.heuristicSpeedup;
     }
 
     /**
@@ -230,9 +235,6 @@ public final class Fgs implements GraphSearch, GraphScorer {
      * @return the resulting Pattern.
      */
     public Graph search() {
-        long start = System.currentTimeMillis();
-        score = 0.0;
-
         topGraphs.clear();
 
         lookupArrows = new ConcurrentHashMap<>();
@@ -241,6 +243,8 @@ public final class Fgs implements GraphSearch, GraphScorer {
         if (adjacencies != null) {
             adjacencies = GraphUtils.replaceNodes(adjacencies, nodes);
         }
+
+        addRequiredEdges(graph);
 
         if (initialGraph != null) {
             graph.clear();
@@ -260,7 +264,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 // Do forward search.
                 fes();
             } else {
-                if (isFaithfulnessAssumed()) {
+                if (isHeuristicSpeedup()) {
                     graph = new EdgeListGraphSingleConnections(getVariables());
                     initializeForwardEdgesFromEmptyGraph(getVariables());
 
@@ -269,18 +273,21 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 } else {
                     graph = new EdgeListGraphSingleConnections(getVariables());
 
-                    setFaithfulnessAssumed(true);
+                    setHeuristicSpeedup(true);
                     initializeForwardEdgesFromEmptyGraph(getVariables());
 
                     // Do forward search.
                     fes();
 
-                    setFaithfulnessAssumed(false);
+                    setHeuristicSpeedup(false);
                     initializeForwardEdgesFromExistingGraph(getVariables());
                     fes();
                 }
             }
         }
+
+        long start = System.currentTimeMillis();
+        score = 0.0;
 
         // Do backward search.
         bes();
@@ -320,6 +327,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
 
     /**
      * For BIC score, a multiplier on the penalty term. For continuous searches.
+     * @deprecated Use the getters on the individual scores instead.
      */
     public double getPenaltyDiscount() {
         if (fgsScore instanceof ISemBicScore) {
@@ -331,6 +339,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
 
     /**
      * For BIC score, a multiplier on the penalty term. For continuous searches.
+     * @deprecated Use the setters on the individual scores instead.
      */
     public void setPenaltyDiscount(double penaltyDiscount) {
         if (fgsScore instanceof ISemBicScore) {
@@ -513,12 +522,12 @@ public final class Fgs implements GraphSearch, GraphScorer {
     //===========================PRIVATE METHODS========================//
 
     //Sets the discrete scoring function to use.
-    private void setFgsScore(Score fgsScore) {
-        this.fgsScore = fgsScore;
+    private void setScore(Score score) {
+        this.fgsScore = score;
 
         this.variables = new ArrayList<>();
 
-        for (Node node : fgsScore.getVariables()) {
+        for (Node node : score.getVariables()) {
             if (node.getNodeType() == NodeType.MEASURED) {
                 this.variables.add(node);
             }
@@ -586,7 +595,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
                             int parent = hashIndices.get(x);
                             double bump = fgsScore.localScoreDiff(parent, child, new int[]{});
 
-                            if (isFaithfulnessAssumed() && fgsScore.isEffectEdge(bump)) {
+                            if (isHeuristicSpeedup() && fgsScore.isEffectEdge(bump)) {
                                 final Edge edge = Edges.undirectedEdge(x, y);
                                 if (boundGraph != null && !boundGraph.isAdjacentTo(edge.getNode1(), edge.getNode2()))
                                     continue;
@@ -604,12 +613,12 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 } else {
                     int mid = (to - from) / 2;
 
-                    InitializeFromEmptyGraphTask left = new InitializeFromEmptyGraphTask(chunk, from, from + mid);
-                    InitializeFromEmptyGraphTask right = new InitializeFromEmptyGraphTask(chunk, from + mid, to);
+                    List<InitializeFromEmptyGraphTask> tasks = new ArrayList<>();
 
-                    left.fork();
-                    right.compute();
-                    left.join();
+                    tasks.add(new InitializeFromEmptyGraphTask(chunk, from, from + mid));
+                    tasks.add(new InitializeFromEmptyGraphTask(chunk, from + mid, to));
+
+                    invokeAll(tasks);
 
                     return true;
                 }
@@ -700,12 +709,12 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 } else {
                     int mid = (to - from) / 2;
 
-                    InitializeFromExistingGraphTask left = new InitializeFromExistingGraphTask(chunk, from, from + mid);
-                    InitializeFromExistingGraphTask right = new InitializeFromExistingGraphTask(chunk, from + mid, to);
+                    List<InitializeFromExistingGraphTask> tasks = new ArrayList<>();
 
-                    left.fork();
-                    right.compute();
-                    left.join();
+                    tasks.add(new InitializeFromExistingGraphTask(chunk, from, from + mid));
+                    tasks.add(new InitializeFromExistingGraphTask(chunk, from + mid, to));
+
+                    invokeAll(tasks);
 
                     return true;
                 }
@@ -842,6 +851,8 @@ public final class Fgs implements GraphSearch, GraphScorer {
             storeGraph();
             reevaluateBackward(toProcess);
         }
+
+        meekOrientRestricted(getVariables(), getKnowledge());
     }
 
     private Set<Node> getCommonAdjacents(Node x, Node y) {
@@ -920,7 +931,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
 
                         List<Node> adj;
 
-                        if (isFaithfulnessAssumed()) {
+                        if (isHeuristicSpeedup()) {
                             adj = effectEdgesGraph.getAdjacentNodes(x);
                         } else {
                             adj = getVariables();
@@ -944,19 +955,19 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 } else {
                     int mid = (to - from) / 2;
 
-                    AdjTask left = new AdjTask(chunk, nodes, from, from + mid);
-                    AdjTask right = new AdjTask(chunk, nodes, from + mid, to);
+                    List<AdjTask> tasks = new ArrayList<>();
 
-                    left.fork();
-                    right.compute();
-                    left.join();
+                    tasks.add(new AdjTask(chunk, nodes, from, from + mid));
+                    tasks.add(new AdjTask(chunk, nodes, from + mid, to));
+
+                    invokeAll(tasks);
 
                     return true;
                 }
             }
         }
 
-        final AdjTask task = new AdjTask(10, new ArrayList<>(nodes), 0, nodes.size());
+        final AdjTask task = new AdjTask(minChunk, new ArrayList<>(nodes), 0, nodes.size());
 
         pool.invoke(task);
 
@@ -964,7 +975,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
 
     // Calculates the new arrows for an a->b edge.
     private void calculateArrowsForward(Node a, Node b) {
-        if (isFaithfulnessAssumed() && !effectEdgesGraph.isAdjacentTo(a, b)) return;
+        if (isHeuristicSpeedup() && !effectEdgesGraph.isAdjacentTo(a, b)) return;
         if (adjacencies != null && !adjacencies.isAdjacentTo(a, b)) return;
         this.neighbors.put(b, getNeighbors(b));
 
@@ -1018,7 +1029,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
                     addArrow(a, b, naYX, T, bump);
                 }
 
-                if (isFaithfulnessAssumed() && union.isEmpty() && fgsScore.isEffectEdge(bump) &&
+                if (isHeuristicSpeedup() && union.isEmpty() && fgsScore.isEffectEdge(bump) &&
                         !effectEdgesGraph.isAdjacentTo(a, b) && graph.getParents(b).isEmpty()) {
                     effectEdgesGraph.addUndirectedEdge(a, b);
                 }
@@ -1082,12 +1093,12 @@ public final class Fgs implements GraphSearch, GraphScorer {
                 } else {
                     int mid = (to - from) / 2;
 
-                    BackwardTask left = new BackwardTask(r, adj, chunk, from, from + mid, hashIndices);
-                    BackwardTask right = new BackwardTask(r, adj, chunk, from + mid, to, hashIndices);
+                    List<BackwardTask> tasks = new ArrayList<>();
 
-                    left.fork();
-                    right.compute();
-                    left.join();
+                    tasks.add(new BackwardTask(r, adj, chunk, from, from + mid, hashIndices));
+                    tasks.add(new BackwardTask(r, adj, chunk, from + mid, to, hashIndices));
+
+                    invokeAll(tasks);
 
                     return true;
                 }
@@ -1097,7 +1108,7 @@ public final class Fgs implements GraphSearch, GraphScorer {
         for (Node r : toProcess) {
             this.neighbors.put(r, getNeighbors(r));
             List<Node> adjacentNodes = graph.getAdjacentNodes(r);
-            pool.invoke(new BackwardTask(r, adjacentNodes, 10, 0, adjacentNodes.size(), hashIndices));
+            pool.invoke(new BackwardTask(r, adjacentNodes, minChunk, 0, adjacentNodes.size(), hashIndices));
         }
     }
 
@@ -1140,12 +1151,18 @@ public final class Fgs implements GraphSearch, GraphScorer {
         }
     }
 
+    /**
+     * @deprecated Use the setters on the individual scores instead.
+     */
     public void setSamplePrior(double samplePrior) {
         if (fgsScore instanceof LocalDiscreteScore) {
             ((LocalDiscreteScore) fgsScore).setSamplePrior(samplePrior);
         }
     }
 
+    /**
+     * @deprecated Use the setters on the individual scores instead.
+     */
     public void setStructurePrior(double expectedNumParents) {
         if (fgsScore instanceof LocalDiscreteScore) {
             ((LocalDiscreteScore) fgsScore).setStructurePrior(expectedNumParents);
@@ -1606,10 +1623,14 @@ public final class Fgs implements GraphSearch, GraphScorer {
         return null;
     }
 
+    // Runs Meek rules on just the changed adj.
+    private Set<Node> reorientNode(List<Node> nodes) {
+        addRequiredEdges(graph);
+        return meekOrientRestricted(nodes, getKnowledge());
+    }
 
     // Runs Meek rules on just the changed adj.
     private Set<Node> meekOrientRestricted(List<Node> nodes, IKnowledge knowledge) {
-        addRequiredEdges(graph);
         MeekRules rules = new MeekRules();
         rules.setKnowledge(knowledge);
         rules.setUndirectUnforcedEdges(true);

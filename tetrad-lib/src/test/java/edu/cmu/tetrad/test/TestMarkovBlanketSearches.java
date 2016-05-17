@@ -121,7 +121,7 @@ public class TestMarkovBlanketSearches {
 //            params.setDiscrete(false);
 //            params.setRandomGraphEveryTime(true);
 //            params.setTimeLimit(600000);
-//            params.setDepth(3);
+//            params.setMaxIndegree(3);
 //            params.setNumTests(30);
 //            params.setMinMbSize(
 //                    8);
@@ -173,7 +173,7 @@ public class TestMarkovBlanketSearches {
 //            params.setSampleSize(1000);
 //            params.setRandomGraphEveryTime(false);
 //            params.setTimeLimit(450000);
-//            params.setDepth(2);
+//            params.setMaxIndegree(2);
 //            params.setNumTests(30);
 //            params.setMinMbSize(8);
 //            params.setParameter1(0.01);
@@ -211,7 +211,7 @@ public class TestMarkovBlanketSearches {
 //            params.setDiscrete(false);
 //            params.setRandomGraphEveryTime(true);
 //            params.setTimeLimit(600000);
-//            params.setDepth(3);
+//            params.setMaxIndegree(3);
 //            params.setNumTests(30);
 //            params.setMinMbSize(6);
 //            params.setParameter1(0.05);
@@ -245,7 +245,7 @@ public class TestMarkovBlanketSearches {
 //        println(out, "# variables = " + params.getNumVars());
 //        println(out, "# edges = " + numEdges);
 //        println(out, "# samples = " + params.getSampleSize());
-//        println(out, "Depth = " + params.getDepth());
+//        println(out, "Depth = " + params.getMaxIndegree());
 //        println(out, params.isDiscrete() ? "Discrete" : "Continuous");
 //
 //        if (params.isDiscrete()) {
@@ -295,7 +295,7 @@ public class TestMarkovBlanketSearches {
 //                algorithms.clear();
 //
 //                for (String algName : algNames) {
-//                    algorithms.add(getAlgorithm(algName, test, params.getDepth(), dataSet));
+//                    algorithms.add(getAlgorithm(algName, test, params.getMaxIndegree(), dataSet));
 //                }
 //            }
 //
@@ -487,7 +487,7 @@ public class TestMarkovBlanketSearches {
 //
 //            public void run() {
 //                this.startTime = System.currentTimeMillis();
-//                nodes = algorithm.findMb(t.getName());
+//                nodes = algorithm.findMb(t.getNode());
 //                done = true;
 //                this.endTime = System.currentTimeMillis();
 //            }
@@ -520,12 +520,12 @@ public class TestMarkovBlanketSearches {
 //            }
 //        }
 //
-////        List<Node> nodes = algorithm.findMb(t.getName());
+////        List<Node> nodes = algorithm.findMb(t.getNode());
 //        List<Node> nodes = thread.getNodes();
 //        List<String> mbf = extractVarNames(nodes, t);
 //
 ////        if (algorithm instanceof MbFanSearch) {
-////            System.out.println("Estimated by MBFS: " + ((MbFanSearch)algorithm).search(t.getName()));
+////            System.out.println("Estimated by MBFS: " + ((MbFanSearch)algorithm).search(t.getNode()));
 ////        }
 //
 //        // Calculate intersection(mbf, truth).
@@ -570,19 +570,19 @@ public class TestMarkovBlanketSearches {
 //        Graph estimatedMbDag;
 //
 //        if (algorithm instanceof Mbfs) {
-//            algorithm.findMb(target.getName());
+//            algorithm.findMb(target.getNode());
 //            estimatedMbDag = ((Mbfs) algorithm).getGraph();
 //        } else {
 //
 //            // Algorithm is run here.
-//            List<Node> nodes = algorithm.findMb(target.getName());
+//            List<Node> nodes = algorithm.findMb(target.getNode());
 //
 //            nodes.add(target);
 //
 //            List<Node> _nodes = new ArrayList<Node>();
 //
 //            for (Node node : nodes) {
-//                _nodes.add(dataSet.getVariable(node.getName()));
+//                _nodes.add(dataSet.getVariable(node.getNode()));
 //            }
 //
 //            DataSet _dataSet = dataSet.subsetColumns(_nodes);
@@ -590,7 +590,7 @@ public class TestMarkovBlanketSearches {
 //            Ges search = new Ges(_dataSet);
 //            estimatedMbDag = search.search();
 //
-//            MbUtils.trimToMbNodes(estimatedMbDag, estimatedMbDag.getNode(target.getName()),
+//            MbUtils.trimToMbNodes(estimatedMbDag, estimatedMbDag.getNode(target.getNode()),
 //                    false);
 //        }
 //
@@ -603,8 +603,8 @@ public class TestMarkovBlanketSearches {
 //        int fn = 0;
 //
 //        for (Edge edge : estimatedMbDag.getEdges()) {
-//            Node node1 = trueMbDag.getNode(edge.getNode1().getName());
-//            Node node2 = trueMbDag.getNode(edge.getNode2().getName());
+//            Node node1 = trueMbDag.getNode(edge.getNode1().getNode());
+//            Node node2 = trueMbDag.getNode(edge.getNode2().getNode());
 //
 //            if (node1 == null || node2 == null) {
 //                fp++;
@@ -619,8 +619,8 @@ public class TestMarkovBlanketSearches {
 //        }
 //
 //        for (Edge edge : trueMbDag.getEdges()) {
-//            Node node1 = estimatedMbDag.getNode(edge.getNode1().getName());
-//            Node node2 = estimatedMbDag.getNode(edge.getNode2().getName());
+//            Node node1 = estimatedMbDag.getNode(edge.getNode1().getNode());
+//            Node node2 = estimatedMbDag.getNode(edge.getNode2().getNode());
 //
 //            if (node1 == null || node2 == null) {
 //                fn++;
@@ -651,7 +651,7 @@ public class TestMarkovBlanketSearches {
 //        final long time = System.currentTimeMillis();
 //
 //        Mbfs algorithm = new Mbfs(test, depth);
-//        Graph estimatedMbDag = algorithm.search(target.getName());
+//        Graph estimatedMbDag = algorithm.search(target.getNode());
 //
 //        long elapsedTime = System.currentTimeMillis() - time;
 //
@@ -661,8 +661,8 @@ public class TestMarkovBlanketSearches {
 //        int fn = 0;
 //
 //        for (Edge edge : estimatedMbDag.getEdges()) {
-//            Node node1 = trueMbDag.getNode(edge.getNode1().getName());
-//            Node node2 = trueMbDag.getNode(edge.getNode2().getName());
+//            Node node1 = trueMbDag.getNode(edge.getNode1().getNode());
+//            Node node2 = trueMbDag.getNode(edge.getNode2().getNode());
 //
 //            if (node1 == null || node2 == null) {
 //                fp++;
@@ -677,8 +677,8 @@ public class TestMarkovBlanketSearches {
 //        }
 //
 //        for (Edge edge : trueMbDag.getEdges()) {
-//            Node node1 = estimatedMbDag.getNode(edge.getNode1().getName());
-//            Node node2 = estimatedMbDag.getNode(edge.getNode2().getName());
+//            Node node1 = estimatedMbDag.getNode(edge.getNode1().getNode());
+//            Node node2 = estimatedMbDag.getNode(edge.getNode2().getNode());
 //
 //            if (node1 == null || node2 == null) {
 //                fn++;
@@ -774,10 +774,10 @@ public class TestMarkovBlanketSearches {
 //        List<String> varNames = new ArrayList<String>();
 //
 //        for (Node node : nodes) {
-//            varNames.add(node.getName());
+//            varNames.add(node.getNode());
 //        }
 //
-//        varNames.remove(target.getName());
+//        varNames.remove(target.getNode());
 //        Collections.sort(varNames);
 //        return varNames;
 //    }
@@ -799,7 +799,7 @@ public class TestMarkovBlanketSearches {
 //        List<Node> nodes = dag.getNodes();
 //
 //        for (Node node : nodes) {
-//            Graph resultMb = search.search(node.getName());
+//            Graph resultMb = search.search(node.getNode());
 //            Graph trueMb = GraphUtils.markovBlanketDag(node, dag);
 //
 //            List<Node> resultNodes = resultMb.getNodes();
@@ -808,13 +808,13 @@ public class TestMarkovBlanketSearches {
 //            Set<String> resultNames = new HashSet<String>();
 //
 //            for (Node resultNode : resultNodes) {
-//                resultNames.add(resultNode.getName());
+//                resultNames.add(resultNode.getNode());
 //            }
 //
 //            Set<String> trueNames = new HashSet<String>();
 //
 //            for (Node v : trueNodes) {
-//                trueNames.add(v.getName());
+//                trueNames.add(v.getNode());
 //            }
 //
 //            assertTrue(resultNames.equals(trueNames));
@@ -823,8 +823,8 @@ public class TestMarkovBlanketSearches {
 //
 //            for (Edge resultEdge : resultEdges) {
 //                if (Edges.isDirectedEdge(resultEdge)) {
-//                    String name1 = resultEdge.getNode1().getName();
-//                    String name2 = resultEdge.getNode2().getName();
+//                    String name1 = resultEdge.getNode1().getNode();
+//                    String name2 = resultEdge.getNode2().getNode();
 //
 //                    Node node1 = trueMb.getNode(name1);
 //                    Node node2 = trueMb.getNode(name2);
@@ -848,9 +848,9 @@ public class TestMarkovBlanketSearches {
 //                    Edge trueEdge = trueMb.getEdge(node1, node2);
 //
 //                    if (trueEdge == null) {
-//                        Node resultNode1 = resultMb.getNode(node1.getName());
-//                        Node resultNode2 = resultMb.getNode(node2.getName());
-//                        Node resultTarget = resultMb.getNode(node.getName());
+//                        Node resultNode1 = resultMb.getNode(node1.getNode());
+//                        Node resultNode2 = resultMb.getNode(node2.getNode());
+//                        Node resultTarget = resultMb.getNode(node.getNode());
 //
 //                        Edge a = resultMb.getEdge(resultNode1, resultTarget);
 //                        Edge b = resultMb.getEdge(resultNode2, resultTarget);
@@ -888,8 +888,8 @@ public class TestMarkovBlanketSearches {
 //                Node node1 = trueEdge.getNode1();
 //                Node node2 = trueEdge.getNode2();
 //
-//                Node resultNode1 = resultMb.getNode(node1.getName());
-//                Node resultNode2 = resultMb.getNode(node2.getName());
+//                Node resultNode1 = resultMb.getNode(node1.getNode());
+//                Node resultNode2 = resultMb.getNode(node2.getNode());
 //
 //                assertTrue("Expected adjacency " + resultNode1 + "---" +
 //                                resultNode2,
@@ -920,7 +920,7 @@ public class TestMarkovBlanketSearches {
 //
 //        Hiton search = new Hiton(test, 3);
 //
-//        search.findMb(t.getName());
+//        search.findMb(t.getNode());
 //        List<Node> mb = search.hitonPc(t);
 //
 //        System.out.println(mb);
@@ -973,11 +973,11 @@ public class TestMarkovBlanketSearches {
 //            this.timeLimit = timeLimit;
 //        }
 //
-//        public int getDepth() {
+//        public int getMaxIndegree() {
 //            return depth;
 //        }
 //
-//        public void setDepth(int depth) {
+//        public void setMaxIndegree(int depth) {
 //            this.depth = depth;
 //        }
 //

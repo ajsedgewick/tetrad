@@ -157,9 +157,19 @@ public class TimeSeriesUtils {
             knowledge.setTierForbiddenWithin(i, true);
         }
 
-//        IndependenceTest test = new IndTestFisherZ(timeLags, 0.05);
-//        CPC search = new CPC(test);
-        Fgs search = new Fgs(timeLags);
+        Score score;
+
+        if (timeLags.isDiscrete()) {
+            score = new BDeuScore(timeLags);
+        } else if (timeLags.isContinuous()) {
+            SemBicScore semBicScore = new SemBicScore(new CovarianceMatrixOnTheFly(timeLags));
+            semBicScore.setPenaltyDiscount(2.0);
+            score = semBicScore;
+        } else {
+            throw new IllegalArgumentException("Mixed data set");
+        }
+
+        Fgs search = new Fgs(score);
         search.setKnowledge(knowledge);
         Graph graph = search.search();
 
@@ -400,7 +410,7 @@ public class TimeSeriesUtils {
         knowledge.setDefaultToKnowledgeLayout(true);
 //        knowledge.setLagged(true);
         laggedData.setKnowledge(knowledge);
-//        laggedData.setName(data.getName());
+//        laggedData.setName(data.getNode());
         return laggedData;
     }
 }

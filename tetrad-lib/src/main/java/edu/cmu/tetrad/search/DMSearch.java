@@ -162,14 +162,15 @@ public class DMSearch {
         Graph pattern = new EdgeListGraph();
 
         if (useFgs) {
-            Fgs fgs = new Fgs(cov);
+            Score score = new SemBicScore(cov);
+            Fgs fgs = new Fgs(score);
 
             pattern = recursiveFgs(pattern, knowledge, this.gesDiscount, getMinDepth(), data, inputString);
         } else {
             this.cov = new CovarianceMatrixOnTheFly(data);
 //            PC pc = new PC(new IndTestFisherZ(cov, this.alphaPC));
 //            pc.setKnowledge(knowledge);
-//            pc.setDepth(0);
+//            pc.setMaxIndegree(0);
             if (verbose) {
                 if (verbose) {
                     System.out.println("Running PC Search");
@@ -632,22 +633,16 @@ public class DMSearch {
             knowledge.setRequired(edge.getNode1().getName(), edge.getNode2().getName());
         }
 
-        previousGES = null;
-
         this.cov = new CovarianceMatrixOnTheFly(data);
 
-
-        Fgs fgs = new Fgs((ICovarianceMatrix) cov);
-
+        SemBicScore score = new SemBicScore(cov);
+        score.setPenaltyDiscount(penalty);
+        Fgs fgs = new Fgs(score);
         fgs.setKnowledge(knowledge);
         fgs.setDepth(this.gesDepth);
-        fgs.setPenaltyDiscount(penalty);
-
         fgs.setIgnoreLinearDependent(true);
 
-
         Graph pattern = fgs.search();
-
 
         //Saves GES output in case is needed.
         File file = new File("src/edu/cmu/tetradproj/amurrayw/ges_output_" + penalty + "_.txt");

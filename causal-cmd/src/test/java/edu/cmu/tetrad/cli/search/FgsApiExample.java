@@ -1,13 +1,15 @@
 package edu.cmu.tetrad.cli.search;
 
-import edu.cmu.tetrad.cli.data.DataReader;
-import edu.cmu.tetrad.cli.data.TabularContinuousDataReader;
 import edu.cmu.tetrad.cli.validation.DataValidation;
 import edu.cmu.tetrad.cli.validation.TabularContinuousData;
 import edu.cmu.tetrad.data.CovarianceMatrixOnTheFly;
 import edu.cmu.tetrad.data.DataSet;
 import edu.cmu.tetrad.graph.Graph;
+import edu.cmu.tetrad.io.DataReader;
+import edu.cmu.tetrad.io.TabularContinuousDataReader;
 import edu.cmu.tetrad.search.Fgs;
+import edu.cmu.tetrad.search.SemBicScore;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -34,13 +36,15 @@ public class FgsApiExample {
         DataReader dataReader = new TabularContinuousDataReader(dataFile, delimiter);
         DataSet dataSet = dataReader.readInData();
 
-        Fgs fgs = new Fgs(new CovarianceMatrixOnTheFly(dataSet));
+        SemBicScore score = new SemBicScore(new CovarianceMatrixOnTheFly(dataSet));
+        score.setPenaltyDiscount(4.0);
+
+        Fgs fgs = new Fgs(score);
         fgs.setOut(System.out);
         fgs.setDepth(-1);
         fgs.setIgnoreLinearDependent(false);
-        fgs.setPenaltyDiscount(4.0);
         fgs.setNumPatternsToStore(0);  // always set to zero
-        fgs.setFaithfulnessAssumed(true);
+        fgs.setHeuristicSpeedup(true);
         fgs.setVerbose(true);
 
         Graph graph = fgs.search();

@@ -186,6 +186,11 @@ public class DirichletScore implements LocalDiscreteScore, Score {
         return localScore(y, append(z, x)) - localScore(y, z);
     }
 
+    @Override
+    public double localScoreDiff(int x, int y) {
+        return localScore(y, x) - localScore(y);
+    }
+
     int[] append(int[] parents, int extra) {
         int[] all = new int[parents.length + 1];
         System.arraycopy(parents, 0, all, 0, parents.length);
@@ -338,6 +343,22 @@ public class DirichletScore implements LocalDiscreteScore, Score {
 
     public void setSamplePrior(double samplePrior) {
         this.samplePrior = samplePrior;
+    }
+
+    @Override
+    public Node getVariable(String targetName) {
+        for (Node node : variables) {
+            if (node.getName().equals(targetName)) {
+                return node;
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public int getMaxIndegree() {
+        return 1000;
     }
 }
 
