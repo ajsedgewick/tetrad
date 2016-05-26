@@ -55,7 +55,7 @@ import java.util.*;
  * @author Joseph Ramsey
  * @author Augustus Mayo.
  */
-public class IndTestMixedLrt implements IndependenceTest {
+public class IndTestMixedLrtMut implements IndependenceTest {
     private DataSet originalData;
     private List<Node> searchVariables;
     private DataSet internalData;
@@ -68,7 +68,7 @@ public class IndTestMixedLrt implements IndependenceTest {
     private DoubleFactory2D factory2D = DoubleFactory2D.dense;
     private String mode = "min";
 
-    public IndTestMixedLrt(DataSet data, double alpha) {
+    public IndTestMixedLrtMut(DataSet data, double alpha) {
         this.searchVariables = data.getVariables();
         this.originalData = data.copy();
         DataSet internalData = data.copy();
@@ -105,16 +105,38 @@ public class IndTestMixedLrt implements IndependenceTest {
      * getVariableNames().
      */
     public boolean isIndependent(Node x, Node y, List<Node> z) {
+        boolean ind = isIndependentOneWay(x,y,z);
+
+        if(ind && mode=="min")
+            ind = isIndependentOneWay(y,x,z);
+        else if(!ind && mode=="max")
+            ind = isIndependentOneWay(y,x,z);
+        else if(mode == "avg"){
+            double p1 = lastP;
+            isIndependentOneWay(y,x,z);
+            double p2 = lastP;
+            if(Double.isNaN(p1))
+                p1 = p2;
+            if(Double.isNaN(p2))
+                p2 = p1;
+            double avg = (p1+p2)/2.0;
+
+            if(Double.isNaN(avg))
+                ind = false;
+            else
+                ind = avg > alpha;
+        }
+
+        return ind;
+    }
+
+    private boolean isIndependentOneWay(Node x, Node y, List<Node> z){
         boolean ind;
 
-        if (x instanceof DiscreteVariable && y instanceof DiscreteVariable) {
+        if (x instanceof DiscreteVariable) {
             ind = isIndependentMultinomialLogisticRegression(x, y, z);
-        } else if (y instanceof DiscreteVariable) {
-            //else if (x instanceof DiscreteVariable) {
-            //return isIndependentMultinomialLogisticRegression(y, x, z);
-            ind = isIndependentRegression(x, y, z);
         } else {
-            ind =  isIndependentRegression(y, x, z);
+            ind = isIndependentRegression(x, y, z);
         }
 
         return ind;

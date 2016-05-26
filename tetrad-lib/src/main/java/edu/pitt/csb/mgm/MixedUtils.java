@@ -28,7 +28,7 @@ import cern.colt.matrix.linalg.Algebra;
 import edu.cmu.tetrad.calculator.expression.Expression;
 import edu.cmu.tetrad.data.*;
 import edu.cmu.tetrad.graph.*;
-import edu.cmu.tetrad.search.IndependenceTest;
+import edu.cmu.tetrad.search.*;//IndependenceTest;
 import edu.cmu.tetrad.sem.GeneralizedSemIm;
 import edu.cmu.tetrad.sem.GeneralizedSemPm;
 import edu.cmu.tetrad.sem.TemplateExpander;
@@ -852,6 +852,33 @@ public class MixedUtils {
         return reader.parseTabular(file);
     }
 
+    /**
+     * Check each pair of variables to see if correlation is 1. WARNING: calculates correlation matrix, memory heavy
+     * when there are lots of variables
+     *
+     * @param ds
+     * @param verbose
+     * @return
+     */
+    public static boolean isColinear(DataSet ds, boolean verbose) {
+        List<Node> nodes = ds.getVariables();
+        boolean isco = false;
+        CorrelationMatrix cor = new CorrelationMatrix(makeContinuousData(ds));
+        for(int i = 0; i < nodes.size(); i++){
+            for(int j = i+1; j < nodes.size(); j++){
+                if(cor.getValue(i,j) == 1){
+                    if(verbose){
+                        isco = true;
+                        System.out.println("Colinearity found between: " + nodes.get(i).getName() + " and " + nodes.get(j).getName());
+                    } else {
+                        return true;
+                    }
+                }
+            }
+        }
+        return isco;
+    }
+
     public static DoubleMatrix2D graphToMatrix(Graph graph, double undirectedWeight, double directedWeight) {
         // initialize matrix
         int n = graph.getNumNodes();
@@ -947,6 +974,7 @@ public class MixedUtils {
             try {
                 cl = Class.forName("edu.cmu.tetrad.search." + name);
             } catch (ClassNotFoundException e) {
+                System.out.println("Not found: " + "edu.cmu.tetrad.search." + name);
             } catch (Exception e) {
                 e.printStackTrace();
             }

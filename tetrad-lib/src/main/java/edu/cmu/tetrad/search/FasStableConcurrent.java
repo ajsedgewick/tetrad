@@ -307,7 +307,7 @@ public class FasStableConcurrent implements IFas {
                                             nf.format(test.getPValue()));
 
                                     out.println(SearchLogUtils.independenceFact(x, y, empty) + " p = " +
-                                            nf.format(test.getPValue()));
+                                            nf.format(test.getPValue()) + " " + test.getPValue());
                                 }
                             } else if (!forbiddenEdge(x, y)) {
                                 adjacencies.get(x).add(y);
@@ -448,6 +448,7 @@ public class FasStableConcurrent implements IFas {
                                         numIndependenceTests++;
                                         independent = test.isIndependent(x, y, condSet);
                                     } catch (Exception e) {
+                                        e.printStackTrace();
                                         independent = false;
                                     }
 
@@ -463,7 +464,7 @@ public class FasStableConcurrent implements IFas {
                                         if (verbose) {
                                             TetradLogger.getInstance().log("independencies", SearchLogUtils.independenceFact(x, y, condSet) + " p = " +
                                                     nf.format(test.getPValue()));
-                                            out.println(SearchLogUtils.independenceFactMsg(x, y, condSet, test.getPValue()));
+                                            out.println(SearchLogUtils.independenceFactMsg(x, y, condSet, test.getPValue()) + " " + test.getPValue());
                                         }
 
                                         continue EDGE;
