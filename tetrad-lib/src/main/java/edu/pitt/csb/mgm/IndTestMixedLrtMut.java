@@ -107,6 +107,8 @@ public class IndTestMixedLrtMut implements IndependenceTest {
     public boolean isIndependent(Node x, Node y, List<Node> z) {
         boolean ind = isIndependentOneWay(x,y,z);
 
+
+
         if(ind && mode=="min")
             ind = isIndependentOneWay(y,x,z);
         else if(!ind && mode=="max")

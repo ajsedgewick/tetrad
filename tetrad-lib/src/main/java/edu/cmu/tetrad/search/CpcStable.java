@@ -75,6 +75,11 @@ public final class CpcStable implements GraphSearch {
     private boolean aggressivelyPreventCycles = false;
 
     /**
+     * The initial graph for the Fast Adjacency Search, or null if there is none.
+     */
+    private Graph initialGraph = null;
+
+    /**
      * The logger for this class. The config needs to be set.
      */
     private TetradLogger logger = TetradLogger.getInstance();
@@ -239,6 +244,7 @@ public final class CpcStable implements GraphSearch {
         fas.setDepth(getDepth());
         fas.setVerbose(verbose);
         fas.setOut(out);
+        fas.setInitialGraph(initialGraph);
 
         // Note that we are ignoring the sepset map returned by this method
         // on purpose; it is not used in this search.
@@ -480,6 +486,10 @@ public final class CpcStable implements GraphSearch {
 
     public void setGraph(Graph graph) {
         this.graph = graph;
+    }
+
+    public void setInitialGraph(Graph initialGraph) {
+        this.initialGraph = initialGraph;
     }
 
     public void setVerbose(boolean verbose) {

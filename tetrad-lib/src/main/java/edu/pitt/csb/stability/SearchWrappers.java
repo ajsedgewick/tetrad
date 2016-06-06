@@ -25,6 +25,7 @@ import edu.cmu.tetrad.data.CovarianceMatrixOnTheFly;
 import edu.cmu.tetrad.data.DataSet;
 import edu.cmu.tetrad.graph.Graph;
 
+import edu.cmu.tetrad.search.CpcStable;
 import edu.cmu.tetrad.search.Fgs;
 import edu.cmu.tetrad.search.IndependenceTest;
 import edu.cmu.tetrad.search.PcStable;
@@ -37,7 +38,7 @@ import edu.pitt.csb.mgm.MixedUtils;
  * Created by ajsedgewick on 9/4/15.
  */
 public class SearchWrappers {
-    public static class PcStableWrapper extends DataGraphSearch {
+    public static class PcStableWrapper extends ConstraintGraphSearch {
         private String testName = null;
 
         //should be one param for the alpha level of the independance test
@@ -66,6 +67,38 @@ public class SearchWrappers {
                 pcs.setDepth((int) searchParams[1]);
             pcs.setVerbose(this.verbose);
             return pcs.search();
+        }
+    }
+
+    public static class CpcStableWrapper extends ConstraintGraphSearch {
+        private String testName = null;
+
+        //should be one param for the alpha level of the independance test
+        public CpcStableWrapper(boolean verbose, double... params) {
+            super(verbose, params);
+        }
+
+        public CpcStableWrapper copy(){
+            CpcStableWrapper w = new CpcStableWrapper(verbose, searchParams);
+            if(testName != null)
+                w.setTestName(testName);
+            return w;
+        }
+
+        public void setTestName(String t){this.testName = t;}
+
+        public Graph search(DataSet ds) {
+            IndependenceTest test;
+            if(testName == null)
+                test = new IndTestMixedLrt(ds, searchParams[0]);
+            else
+                test = MixedUtils.IndTestFromString(testName, ds, searchParams[0]);
+            //test = new IndTestMultinomialLogisticRegression(ds, searchParams[0]);
+            CpcStable cpcs = new CpcStable(test);
+            if(searchParams.length==2 && searchParams[1] >= 0)
+                cpcs.setDepth((int) searchParams[1]);
+            cpcs.setVerbose(this.verbose);
+            return cpcs.search();
         }
     }
 
